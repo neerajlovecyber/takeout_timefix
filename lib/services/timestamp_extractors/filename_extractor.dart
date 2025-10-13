@@ -94,7 +94,7 @@ class FixedDateTimeFormatter {
 
       // Handle IMG_YYYYMMDD_WA format (WhatsApp without time)
       if (format == 'IMG_YYYYMMDD_WA') {
-        final regex = RegExp(r'IMG[-_](\d{4})(\d{2})(\d{2})[-_]WA\d+');
+        final regex = RegExp(r'IMG[-_](20\d{2})(\d{2})(\d{2})[-_]WA\d+');
         final match = regex.firstMatch(dateStr);
         if (match != null) {
           return DateTime(
@@ -110,7 +110,7 @@ class FixedDateTimeFormatter {
 
       // Handle IMG_YYYYMMDD_WA_YYYYMMDDHHMMSS format (WhatsApp with time)
       if (format == 'IMG_YYYYMMDD_WA_YYYYMMDDHHMMSS') {
-        final regex = RegExp(r'IMG[-_](\d{4})(\d{2})(\d{2})[-_]WA\d+[-_](\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})');
+        final regex = RegExp(r'IMG[-_](20\d{2})(\d{2})(\d{2})[-_]WA\d+[-_](20\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})');
         final match = regex.firstMatch(dateStr);
         if (match != null) {
           return DateTime(
@@ -126,7 +126,7 @@ class FixedDateTimeFormatter {
 
       // Handle YYYYMMDD_WA format (simple WhatsApp format)
       if (format == 'YYYYMMDD_WA') {
-        final regex = RegExp(r'(\d{4})(\d{2})(\d{2})[-_]WA\d+');
+        final regex = RegExp(r'(20\d{2})(\d{2})(\d{2})[-_]WA\d+');
         final match = regex.firstMatch(dateStr);
         if (match != null) {
           return DateTime(
@@ -142,7 +142,7 @@ class FixedDateTimeFormatter {
 
       // Handle VID_YYYYMMDD_WA format (WhatsApp video format)
       if (format == 'VID_YYYYMMDD_WA') {
-        final regex = RegExp(r'VID[-_](\d{4})(\d{2})(\d{2})[-_]WA\d+');
+        final regex = RegExp(r'VID[-_](20\d{2})(\d{2})(\d{2})[-_]WA\d+');
         final match = regex.firstMatch(dateStr);
         if (match != null) {
           return DateTime(
@@ -303,7 +303,7 @@ class FilenameExtractor {
 
     // Pattern 11: WhatsApp format with time - IMG-20150224-WA0058-20210203123456.jpg
     _FilenamePattern(
-      regex: RegExp(r'IMG[-_](\d{4})(\d{2})(\d{2})[-_]WA\d+[-_](\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})'),
+      regex: RegExp(r'IMG[-_](20\d{2})(\d{2})(\d{2})[-_]WA\d+[-_](20\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})'),
       format: 'IMG_YYYYMMDD_WA_YYYYMMDDHHMMSS',
       yearGroup: 1,
       monthGroup: 2,
@@ -315,7 +315,7 @@ class FilenameExtractor {
 
     // Pattern 12: Simple date format - 20150224-WA0058.jpg
     _FilenamePattern(
-      regex: RegExp(r'(\d{4})(\d{2})(\d{2})[-_]WA\d+'),
+      regex: RegExp(r'(20\d{2})(\d{2})(\d{2})[-_]WA\d+'),
       format: 'YYYYMMDD_WA',
       yearGroup: 1,
       monthGroup: 2,
@@ -327,7 +327,7 @@ class FilenameExtractor {
 
     // Pattern 13: VID WhatsApp format - VID-20150224-WA0058.mp4
     _FilenamePattern(
-      regex: RegExp(r'VID[-_](\d{4})(\d{2})(\d{2})[-_]WA\d+'),
+      regex: RegExp(r'VID[-_](20\d{2})(\d{2})(\d{2})[-_]WA\d+'),
       format: 'VID_YYYYMMDD_WA',
       yearGroup: 1,
       monthGroup: 2,
