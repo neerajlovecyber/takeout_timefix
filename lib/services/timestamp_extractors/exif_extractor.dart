@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'dart:math';
+import 'package:exif/exif.dart';
 
 /// Service for extracting timestamps from EXIF metadata in image files
 /// Matches the original implementation's approach for maximum performance
@@ -21,11 +23,52 @@ class ExifExtractor {
       // i have nvme + btrfs, but still, will leave as is
       final bytes = await imageFile.readAsBytes();
 
-      // For now, skip EXIF processing to focus on JSON optimization
-      // This matches the original's fallback approach when EXIF fails
-      return null;
+      // Extract EXIF data directly from bytes (like original)
+      final tags = await readExifFromBytes(bytes);
+
+      if (tags.isEmpty) {
+        return null;
+      }
+
+      // Try EXIF fields in priority order (like original)
+      String? datetime;
+
+      // Priority 1: DateTime (file modification time)
+      datetime ??= tags['Image DateTime']?.printable;
+
+      // Priority 2: DateTimeOriginal (most accurate for when photo was taken)
+      datetime ??= tags['EXIF DateTimeOriginal']?.printable;
+
+      // Priority 3: DateTimeDigitized (when image was digitized)
+      datetime ??= tags['EXIF DateTimeDigitized']?.printable;
+
+      if (datetime == null) return null;
+
+      // Parse datetime string (like original)
+      return _parseExifDateTime(datetime);
     } catch (e) {
       // EXIF extraction failed, return null to try next extractor
+      return null;
+    }
+  }
+
+  /// Parse EXIF date time string into DateTime object (like original)
+  DateTime? _parseExifDateTime(String datetime) {
+    try {
+      // Replace all separators with colons (like original)
+      datetime = datetime
+          .replaceAll('-', ':')
+          .replaceAll('/', ':')
+          .replaceAll('.', ':')
+          .replaceAll('\\', ':')
+          .replaceAll(': ', ':0')
+          .substring(0, min(datetime.length, 19))
+          .replaceFirst(':', '-') // Replace first : with - for year/month
+          .replaceFirst(':', '-'); // Replace second : with - for month/day
+
+      // Now date should be like: "1999-06-23 23:55"
+      return DateTime.tryParse(datetime);
+    } catch (e) {
       return null;
     }
   }

@@ -165,11 +165,11 @@ class FileOrganizationService {
 
     if (preserveOriginalFilename) {
       final originalName = path.basename(media.primaryFile!.path);
-      return path.join(outputDirectory, 'no_date', originalName);
+      return path.join(outputDirectory, 'date-unknown', originalName); // Match original
     } else {
       final extension = path.extension(media.primaryFile!.path);
       final newFilename = '${fallbackDate}_no_date$extension';
-      return path.join(outputDirectory, 'no_date', newFilename);
+      return path.join(outputDirectory, 'date-unknown', newFilename); // Match original
     }
   }
 

@@ -56,6 +56,9 @@ dependencies:
   # EXIF metadata extraction (matches original implementation)
   exif: ^3.3.0
 
+  # Date/time formatting (matches original implementation)
+  convert: ^3.1.1
+
   # Reactive extensions for Dart streams
   rxdart: ^0.27.7
 

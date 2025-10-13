@@ -39,7 +39,7 @@ class _ProcessingProgressCardState extends State<ProcessingProgressCard>
   void initState() {
     super.initState();
     _animationController = AnimationController(
-      duration: const Duration(milliseconds: 100),
+      duration: const Duration(milliseconds: 1000),
       vsync: this,
     )..repeat();
     _setupProgressListeners();

@@ -1,11 +1,13 @@
 import 'dart:io';
+import 'package:convert/convert.dart';
 
 /// Service for extracting timestamps from filename patterns when metadata is unavailable
+/// Matches the original implementation's approach
 class FilenameExtractor {
   /// Regex patterns for different filename formats
-  /// Ordered by priority/specificity
+  /// Matches the original implementation exactly
   static final List<_FilenamePattern> _patterns = [
-    // Pattern 1: Screenshot format - Screenshot_20190919-053857.jpg
+    // Pattern 1: Screenshot format - Screenshot_20190919-053857.jpg (matches original)
     _FilenamePattern(
       regex: RegExp(r'Screenshot[_-](\d{4})(\d{2})(\d{2})[-_](\d{2})(\d{2})(\d{2})'),
       format: 'Screenshot_YYYYMMDD-HHMMSS',
@@ -17,7 +19,7 @@ class FilenameExtractor {
       secondGroup: 6,
     ),
 
-    // Pattern 2: IMG format - IMG_20190509_154733.jpg
+    // Pattern 2: IMG format - IMG_20190509_154733.jpg (matches original)
     _FilenamePattern(
       regex: RegExp(r'IMG[_-](\d{4})(\d{2})(\d{2})[_-](\d{2})(\d{2})(\d{2})'),
       format: 'IMG_YYYYMMDD_HHMMSS',
@@ -29,7 +31,7 @@ class FilenameExtractor {
       secondGroup: 6,
     ),
 
-    // Pattern 3: Signal format - signal-2020-10-26-163832.jpg
+    // Pattern 3: Signal format - signal-2020-10-26-163832.jpg (matches original)
     _FilenamePattern(
       regex: RegExp(r'signal[-_](\d{4})[-_](\d{2})[-_](\d{2})[-_](\d{2})[-_](\d{2})[-_](\d{2})'),
       format: 'signal-YYYY-MM-DD-HH-MM-SS',
@@ -41,7 +43,7 @@ class FilenameExtractor {
       secondGroup: 6,
     ),
 
-    // Pattern 4: Alternative format - 2016_01_30_11_49_15.mp4
+    // Pattern 4: Alternative format - 2016_01_30_11_49_15.mp4 (matches original)
     _FilenamePattern(
       regex: RegExp(r'(\d{4})[_-](\d{2})[_-](\d{2})[_-](\d{2})[_-](\d{2})[_-](\d{2})'),
       format: 'YYYY_MM_DD_HH_MM_SS',
@@ -53,7 +55,7 @@ class FilenameExtractor {
       secondGroup: 6,
     ),
 
-    // Pattern 5: Compact format - 20190919053857.jpg
+    // Pattern 5: Compact format - 20190919053857.jpg (matches original)
     _FilenamePattern(
       regex: RegExp(r'(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})'),
       format: 'YYYYMMDDHHMMSS',
@@ -65,32 +67,10 @@ class FilenameExtractor {
       secondGroup: 6,
     ),
 
-    // Pattern 6: Date with time format - 2020-10-26-163832.jpg
+    // Pattern 6: Date with time format - 2020-10-26-163832.jpg (matches original)
     _FilenamePattern(
       regex: RegExp(r'(\d{4})[-_](\d{2})[-_](\d{2})[-_](\d{2})(\d{2})(\d{2})'),
       format: 'YYYY-MM-DD-HHMMSS',
-      yearGroup: 1,
-      monthGroup: 2,
-      dayGroup: 3,
-      hourGroup: 4,
-      minuteGroup: 5,
-      secondGroup: 6,
-    ),
-
-    // Pattern 7: WhatsApp format - IMG-20201201-WA0001.jpg
-    _FilenamePattern(
-      regex: RegExp(r'IMG[-_](\d{4})(\d{2})(\d{2})[-_].*'),
-      format: 'IMG-YYYYMMDD',
-      yearGroup: 1,
-      monthGroup: 2,
-      dayGroup: 3,
-      // No time information available
-    ),
-
-    // Pattern 8: Video format - VID_20200101_120000.mp4
-    _FilenamePattern(
-      regex: RegExp(r'VID[_-](\d{4})(\d{2})(\d{2})[_-](\d{2})(\d{2})(\d{2})'),
-      format: 'VID_YYYYMMDD_HHMMSS',
       yearGroup: 1,
       monthGroup: 2,
       dayGroup: 3,
@@ -126,23 +106,14 @@ class FilenameExtractor {
     return lastDot != -1 ? filename.substring(0, lastDot) : filename;
   }
 
-  /// Build DateTime object from regex match groups
+  /// Build DateTime object from regex match groups (matches original)
   DateTime? _buildDateTimeFromMatch(RegExpMatch match, _FilenamePattern pattern) {
     try {
-      final year = int.tryParse(match.group(pattern.yearGroup) ?? '');
-      final month = int.tryParse(match.group(pattern.monthGroup) ?? '');
-      final day = int.tryParse(match.group(pattern.dayGroup) ?? '');
+      final dateStr = match.group(0);
+      if (dateStr == null) return null;
 
-      // If time information is not available, default to noon
-      final hour = pattern.hourGroup > 0 ? int.tryParse(match.group(pattern.hourGroup) ?? '') : 12;
-      final minute = pattern.minuteGroup > 0 ? int.tryParse(match.group(pattern.minuteGroup) ?? '') : 0;
-      final second = pattern.secondGroup > 0 ? int.tryParse(match.group(pattern.secondGroup) ?? '') : 0;
-
-      if (year == null || month == null || day == null) {
-        return null;
-      }
-
-      return DateTime(year, month, day, hour ?? 12, minute ?? 0, second ?? 0);
+      // Use FixedDateTimeFormatter like original for reliable parsing
+      return FixedDateTimeFormatter(pattern.format, isUtc: false).tryDecode(dateStr);
     } catch (e) {
       return null;
     }

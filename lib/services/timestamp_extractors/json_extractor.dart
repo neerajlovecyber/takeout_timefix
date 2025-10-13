@@ -84,7 +84,7 @@ class JsonExtractor {
     // Strategy: Remove edited suffixes and try again
     for (final suffix in _editedSuffixes) {
       if (mediaName.contains(suffix)) {
-        final cleanedName = mediaName.replaceFirst(suffix, '');
+        final cleanedName = replaceLast(mediaName, suffix, '');
         final jsonFile = _tryFindJsonFile(directory, '$cleanedName.json');
         if (jsonFile != null) return jsonFile;
 
@@ -172,5 +172,12 @@ class JsonExtractor {
 
     return unrelatedPatterns.any((pattern) =>
       filename.contains(pattern.toLowerCase()));
+  }
+
+  /// Extension method to match original's replaceLast functionality
+  static String replaceLast(String original, String pattern, String replacement) {
+    final lastIndex = original.lastIndexOf(pattern);
+    if (lastIndex == -1) return original;
+    return original.replaceRange(lastIndex, lastIndex + pattern.length, replacement);
   }
 }
