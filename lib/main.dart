@@ -317,10 +317,9 @@ class _HomePageState extends State<HomePage> {
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
             // Header
             Card(
               child: Padding(
@@ -543,7 +542,6 @@ class _HomePageState extends State<HomePage> {
           ],
         ),
       ),
-    ),
-  );
+    );
   }
 }
