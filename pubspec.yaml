@@ -53,6 +53,9 @@ dependencies:
   # Cross-platform path operations
   path: ^1.9.0
 
+  # EXIF metadata extraction (matches original implementation)
+  exif: ^3.3.0
+
   # Reactive extensions for Dart streams
   rxdart: ^0.27.7
 

@@ -28,8 +28,8 @@ class JsonExtractor {
   /// Returns the DateTime if found, null otherwise
   Future<DateTime?> extractTimestamp(File mediaFile) async {
     try {
-      // Try to find the corresponding JSON file (direct like original)
-      final jsonFile = await _findJsonFile(mediaFile);
+      // Try to find the corresponding JSON file (synchronous for performance)
+      final jsonFile = _findJsonFile(mediaFile);
       if (jsonFile == null) {
         return null;
       }
@@ -46,46 +46,50 @@ class JsonExtractor {
     }
   }
 
-  /// Find the corresponding JSON file for a media file (direct like original)
-  Future<File?> _findJsonFile(File mediaFile) async {
+  /// Find the corresponding JSON file for a media file (synchronous for performance)
+  File? _findJsonFile(File mediaFile) {
     final mediaPath = mediaFile.path;
     final mediaDir = path.dirname(mediaPath);
     final mediaName = path.basenameWithoutExtension(mediaPath);
     final mediaExt = path.extension(mediaPath);
 
-    // Strategy 1: Basic filename matching (direct like original)
-    File? jsonFile = await _tryFindJsonFile(mediaDir, '$mediaName.json');
+    // Strategy 1: Basic filename matching (synchronous for performance)
+    File? jsonFile = _tryFindJsonFile(mediaDir, '$mediaName.json');
     if (jsonFile != null) return jsonFile;
 
-    // Strategy 2: Try-hard mode for problematic files (direct like original)
-    jsonFile = await _tryHardJsonMatching(mediaDir, mediaName, mediaExt);
+    // Strategy 2: Try-hard mode for problematic files (synchronous for performance)
+    jsonFile = _tryHardJsonMatching(mediaDir, mediaName, mediaExt);
     if (jsonFile != null) return jsonFile;
 
     return null;
   }
 
-  /// Try to find JSON file with basic filename matching
-  Future<File?> _tryFindJsonFile(String directory, String jsonFilename) async {
+  /// Try to find JSON file with basic filename matching (synchronous for performance)
+  File? _tryFindJsonFile(String directory, String jsonFilename) {
     final jsonFile = File(path.join(directory, jsonFilename));
 
-    if (await jsonFile.exists()) {
-      return jsonFile;
+    try {
+      if (jsonFile.existsSync()) {
+        return jsonFile;
+      }
+    } catch (e) {
+      // If synchronous check fails, return null
     }
 
     return null;
   }
 
-  /// Aggressive JSON matching for problematic files
-  Future<File?> _tryHardJsonMatching(String directory, String mediaName, String mediaExt) async {
+  /// Aggressive JSON matching for problematic files (synchronous for performance)
+  File? _tryHardJsonMatching(String directory, String mediaName, String mediaExt) {
     // Strategy: Remove edited suffixes and try again
     for (final suffix in _editedSuffixes) {
       if (mediaName.contains(suffix)) {
         final cleanedName = mediaName.replaceFirst(suffix, '');
-        final jsonFile = await _tryFindJsonFile(directory, '$cleanedName.json');
+        final jsonFile = _tryFindJsonFile(directory, '$cleanedName.json');
         if (jsonFile != null) return jsonFile;
 
         // Also try with extension added back
-        final jsonFileWithExt = await _tryFindJsonFile(directory, '$cleanedName$mediaExt.json');
+        final jsonFileWithExt = _tryFindJsonFile(directory, '$cleanedName$mediaExt.json');
         if (jsonFileWithExt != null) return jsonFileWithExt;
       }
     }
@@ -98,7 +102,7 @@ class JsonExtractor {
       final nameWithoutBracket = mediaName.substring(0, bracketMatch.start);
       final swappedName = '$nameWithoutBracket$mediaExt($number)';
 
-      final jsonFile = await _tryFindJsonFile(directory, '$swappedName.json');
+      final jsonFile = _tryFindJsonFile(directory, '$swappedName.json');
       if (jsonFile != null) return jsonFile;
     }
 
@@ -106,14 +110,14 @@ class JsonExtractor {
     final digitBracketPattern = RegExp(r'\(\d+\)\.');
     if (digitBracketPattern.hasMatch(mediaName)) {
       final cleanedName = mediaName.replaceAll(digitBracketPattern, '.');
-      final jsonFile = await _tryFindJsonFile(directory, '$cleanedName.json');
+      final jsonFile = _tryFindJsonFile(directory, '$cleanedName.json');
       if (jsonFile != null) return jsonFile;
     }
 
     // Strategy: Try shortened names for very long filenames
     if (mediaName.length > _maxFilenameLength) {
       final shortenedName = mediaName.substring(0, _maxFilenameLength);
-      final jsonFile = await _tryFindJsonFile(directory, '$shortenedName.json');
+      final jsonFile = _tryFindJsonFile(directory, '$shortenedName.json');
       if (jsonFile != null) return jsonFile;
     }
 

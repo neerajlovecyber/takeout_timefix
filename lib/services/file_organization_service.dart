@@ -28,11 +28,11 @@ class FileOrganizationService {
     final errors = <String>[];
 
     // Create output directory if it doesn't exist
-    await _ensureDirectoryExists(outputDirectory);
+    _ensureDirectoryExists(outputDirectory);
 
     for (final media in mediaList) {
       try {
-        final organizedFile = await _organizeSingleMedia(
+        final organizedFile = _organizeSingleMedia(
           media,
           outputDirectory,
           mode,
@@ -54,21 +54,21 @@ class FileOrganizationService {
     );
   }
 
-  /// Organize a single media file
-  Future<OrganizedFile> _organizeSingleMedia(
+  /// Organize a single media file (synchronous for performance)
+  OrganizedFile _organizeSingleMedia(
     Media media,
     String outputDirectory,
     OrganizationMode mode, {
     bool preserveOriginalFilename = false,
     String? customDateFormat,
-  }) async {
+  }) {
     final sourceFile = media.primaryFile;
     if (sourceFile == null) {
       throw Exception('No primary file found for media');
     }
 
-    // Determine target path based on organization mode
-    final targetPath = await _getTargetPath(
+    // Determine target path based on organization mode (synchronous for performance)
+    final targetPath = _getTargetPath(
       media,
       outputDirectory,
       mode,
@@ -78,10 +78,10 @@ class FileOrganizationService {
 
     // Ensure target directory exists
     final targetDir = path.dirname(targetPath);
-    await _ensureDirectoryExists(targetDir);
+    _ensureDirectoryExists(targetDir);
 
-    // Copy or move file to target location
-    final targetFile = await _copyFileToTarget(sourceFile, targetPath);
+    // Copy or move file to target location (synchronous for performance)
+    final targetFile = _copyFileToTarget(sourceFile, targetPath);
 
     return OrganizedFile(
       sourceFile: sourceFile,
@@ -92,14 +92,14 @@ class FileOrganizationService {
     );
   }
 
-  /// Get the target path for a media file based on organization mode
-  Future<String> _getTargetPath(
+  /// Get the target path for a media file based on organization mode (synchronous for performance)
+  String _getTargetPath(
     Media media,
     String outputDirectory,
     OrganizationMode mode, {
     bool preserveOriginalFilename = false,
     String? customDateFormat,
-  }) async {
+  }) {
     final dateTaken = media.dateTaken;
     if (dateTaken == null) {
       // If no date available, use current date or a default structure
@@ -173,23 +173,24 @@ class FileOrganizationService {
     }
   }
 
-  /// Copy file to target location with conflict resolution
-  Future<File> _copyFileToTarget(File sourceFile, String targetPath) async {
+  /// Copy file to target location with conflict resolution (synchronous for performance)
+  File _copyFileToTarget(File sourceFile, String targetPath) {
+    var finalTargetPath = targetPath;
     final targetFile = File(targetPath);
 
-    // Handle filename conflicts
-    if (await targetFile.exists()) {
-      targetPath = await _resolveFilenameConflict(targetPath);
+    // Handle filename conflicts (synchronous for performance)
+    if (targetFile.existsSync()) {
+      finalTargetPath = _resolveFilenameConflictSync(targetPath);
     }
 
-    // Copy the file
-    await sourceFile.copy(targetPath);
+    // Copy the file (synchronous for performance)
+    sourceFile.copySync(finalTargetPath);
 
-    return File(targetPath);
+    return File(finalTargetPath);
   }
 
-  /// Resolve filename conflicts by adding a suffix
-  Future<String> _resolveFilenameConflict(String targetPath) async {
+  /// Resolve filename conflicts by adding a suffix (synchronous for performance)
+  String _resolveFilenameConflictSync(String targetPath) {
     final directory = path.dirname(targetPath);
     final filename = path.basenameWithoutExtension(targetPath);
     final extension = path.extension(targetPath);
@@ -200,16 +201,16 @@ class FileOrganizationService {
     do {
       newPath = path.join(directory, '$filename($counter)$extension');
       counter++;
-    } while (await File(newPath).exists());
+    } while (File(newPath).existsSync());
 
     return newPath;
   }
 
-  /// Ensure directory exists, creating it if necessary
-  Future<void> _ensureDirectoryExists(String directoryPath) async {
+  /// Ensure directory exists, creating it if necessary (synchronous for performance)
+  void _ensureDirectoryExists(String directoryPath) {
     final directory = Directory(directoryPath);
-    if (!await directory.exists()) {
-      await directory.create(recursive: true);
+    if (!directory.existsSync()) {
+      directory.createSync(recursive: true);
     }
   }
 
