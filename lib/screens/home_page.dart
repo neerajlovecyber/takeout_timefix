@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import '../models/folder_state.dart';
 import '../services/folder_service.dart';
+import '../services/processing_service.dart';
 import '../utils/app_constants.dart';
 import '../utils/ui_helpers.dart';
 import '../widgets/app_header.dart';
 import '../widgets/folder_selection_button.dart';
 import '../widgets/ready_for_processing_card.dart';
+import '../widgets/processing_progress_card.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -16,6 +18,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final FolderService _folderService = FolderService();
+  final ProcessingService _processingService = ProcessingService();
 
   FolderState _folderState = const FolderState();
   OutputFolderConfig _outputConfig = const OutputFolderConfig();
@@ -357,6 +360,20 @@ class _HomePageState extends State<HomePage> {
                 // Next Steps Info
                 if (_folderState.isValidTakeoutFolder && _outputConfig.isReadyForProcessing) ...[
                   const ReadyForProcessingCard(),
+                  const SizedBox(height: AppConstants.largeSpacing),
+
+                  // Processing Progress Card
+                  if (_folderState.selectedFolderPath != null && _outputConfig.outputFolderPath != null)
+                    ProcessingProgressCard(
+                      inputDirectory: _folderState.selectedFolderPath!,
+                      outputDirectory: _outputConfig.outputFolderPath!,
+                      onProcessingComplete: () {
+                        // Refresh the folder state to show updated file counts
+                        if (_folderState.selectedFolderPath != null) {
+                          _validateTakeoutFolder(_folderState.selectedFolderPath!);
+                        }
+                      },
+                    ),
                 ],
               ],
             ),
