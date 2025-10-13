@@ -59,32 +59,32 @@ class ProcessingService {
   }
 
   /// Main processing method that runs on main thread with detailed progress updates
-  Future<ProcessingResult> _processInMainThread(ProcessingConfig config) async {
-    try {
-      // Phase 1: File Discovery (0-15%)
-      _progressService.updateProgress(5, statusMessage: 'Scanning for media files...');
-      final mediaFiles = await _discoverMediaFiles();
+ Future<ProcessingResult> _processInMainThread(ProcessingConfig config) async {
+   try {
+     // Phase 1: File Discovery (0-10%) - REDUCED
+     _progressService.updateProgress(3, statusMessage: 'Scanning for media files...');
+     final mediaFiles = await _discoverMediaFiles();
 
-      if (mediaFiles.isEmpty) {
-        throw Exception('No media files found in the specified directory');
-      }
+     if (mediaFiles.isEmpty) {
+       throw Exception('No media files found in the specified directory');
+     }
 
-      _progressService.updateProgress(15, statusMessage: 'Found ${mediaFiles.length} media files');
+     _progressService.updateProgress(10, statusMessage: 'Found ${mediaFiles.length} media files');
 
-      // Phase 2: Timestamp Extraction (15-50%)
-      _progressService.updateProgress(20, statusMessage: 'Starting timestamp extraction...');
-      final mediaWithTimestamps = await _extractTimestamps(mediaFiles);
-      _progressService.updateProgress(50, statusMessage: 'Extracted timestamps for ${mediaWithTimestamps.length}/${mediaFiles.length} files');
+     // Phase 2: Timestamp Extraction (10-45%) - SLIGHTLY REDUCED
+     _progressService.updateProgress(15, statusMessage: 'Starting timestamp extraction...');
+     final mediaWithTimestamps = await _extractTimestamps(mediaFiles);
+     _progressService.updateProgress(45, statusMessage: 'Extracted timestamps for ${mediaWithTimestamps.length}/${mediaFiles.length} files');
 
-      // Phase 3: Duplicate Detection and Merging (50-80%)
-      _progressService.updateProgress(55, statusMessage: 'Detecting duplicates...');
-      final uniqueMedia = await _processDuplicates(mediaWithTimestamps);
-      _progressService.updateProgress(80, statusMessage: 'Processed duplicates, ${uniqueMedia.length} unique files');
+     // Phase 3: Duplicate Detection and Merging (45-80%) - INCREASED
+     _progressService.updateProgress(47, statusMessage: 'Detecting duplicates...');
+     final uniqueMedia = await _processDuplicates(mediaWithTimestamps);
+     _progressService.updateProgress(80, statusMessage: 'Processed duplicates, ${uniqueMedia.length} unique files');
 
-      // Phase 4: File Organization (80-100%)
-      _progressService.updateProgress(85, statusMessage: 'Organizing files...');
-      final organizationResult = await _organizeFiles(uniqueMedia);
-      _progressService.updateProgress(100, statusMessage: 'Organized ${organizationResult.successfulFiles} files successfully');
+     // Phase 4: File Organization (80-100%) - SLIGHTLY REDUCED
+     _progressService.updateProgress(83, statusMessage: 'Organizing files...');
+     final organizationResult = await _organizeFiles(uniqueMedia);
+     _progressService.updateProgress(100, statusMessage: 'Organized ${organizationResult.successfulFiles} files successfully');
 
       return ProcessingResult.success(
         totalFiles: mediaFiles.length,
@@ -272,7 +272,7 @@ class ProcessingService {
 
       // Update progress every 10 files or at the end for more responsive updates
       if (i % 10 == 0 || i == files.length - 1) {
-        final progress = 20 + ((i / totalFiles) * 30); // 20-50% range for this phase
+        final progress = 15 + ((i / totalFiles) * 30); // 15-45% range for this phase
         _progressService.updateProgress(progress.round(),
           statusMessage: 'Processed ${i + 1}/$totalFiles files for timestamps');
       }
@@ -460,29 +460,29 @@ class ProcessingService {
 
   /// Phase 3: Process duplicates and merge them
   Future<List<Media>> _processDuplicates(List<Media> mediaList) async {
-    _progressService.updateProgress(52, statusMessage: 'Starting duplicate detection...');
+    _progressService.updateProgress(47, statusMessage: 'Starting duplicate detection...');
 
     try {
       // Group media by hash to find duplicates with progress updates
-      _progressService.updateProgress(55, statusMessage: 'Calculating file hashes...');
+      _progressService.updateProgress(48, statusMessage: 'Calculating file hashes...');
 
       final hashGroups = await _duplicateService.groupMediaByHashWithProgress(
         mediaList,
         (progress, status) {
-          // Update progress during hash calculation (55-62% range)
-          final progressValue = 55 + (progress * 7); // Spread over 7% range
+          // Update progress during hash calculation (48-65% range) - INCREASED RANGE
+          final progressValue = 48 + (progress * 17); // Spread over 17% range
           _progressService.updateProgress(progressValue.round(), statusMessage: status);
         },
       );
 
-      _progressService.updateProgress(62, statusMessage: 'Merging duplicate groups...');
+      _progressService.updateProgress(65, statusMessage: 'Merging duplicate groups...');
 
       // Merge duplicate groups with progress updates
       final mergedMedia = await _duplicateService.mergeDuplicatesWithProgress(
         hashGroups,
         (progress, status) {
-          // Update progress during merging (62-70% range)
-          final progressValue = 62 + (progress * 8); // Spread over 8% range
+          // Update progress during merging (65-75% range)
+          final progressValue = 65 + (progress * 10); // Spread over 10% range
           _progressService.updateProgress(progressValue.round(), statusMessage: status);
         },
       );
@@ -491,7 +491,7 @@ class ProcessingService {
       final unhashableMedia = mediaList.where((media) => media.hash == null).toList();
       mergedMedia.addAll(unhashableMedia);
 
-      _progressService.updateProgress(75, statusMessage: 'Duplicate detection complete, ${mergedMedia.length} unique files');
+      _progressService.updateProgress(80, statusMessage: 'Duplicate detection complete, ${mergedMedia.length} unique files');
 
       return mergedMedia;
     } catch (e) {
@@ -538,11 +538,11 @@ class ProcessingService {
 
   /// Phase 4: Organize files into the target structure
   Future<OrganizationResult> _organizeFiles(List<Media> mediaList) async {
-    _progressService.updateProgress(78, statusMessage: 'Preparing file organization...');
+    _progressService.updateProgress(82, statusMessage: 'Preparing file organization...');
 
     try {
       // Update progress as files are being organized
-      _progressService.updateProgress(80, statusMessage: 'Creating directories and organizing ${mediaList.length} files...');
+      _progressService.updateProgress(85, statusMessage: 'Creating directories and organizing ${mediaList.length} files...');
 
       final result = await _organizationService.organizeFiles(
         mediaList,
