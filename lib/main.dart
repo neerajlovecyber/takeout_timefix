@@ -3,6 +3,7 @@ import 'package:file_picker/file_picker.dart';
 import 'dart:io';
 import 'dart:math';
 import 'package:path/path.dart' as path;
+import 'package:path_provider/path_provider.dart';
 
 void main() {
   runApp(const TakeoutTimeFixApp());
@@ -38,6 +39,11 @@ class _HomePageState extends State<HomePage> {
   String? _selectedFolderPath;
   bool _isValidTakeoutFolder = false;
   List<String> _imageFiles = [];
+
+  // Output folder configuration (Feature 2)
+  String? _outputFolderPath;
+  bool _isValidOutputFolder = false;
+  bool _hasWritePermissions = false;
 
   Future<void> _selectTakeoutFolder() async {
     try {
@@ -165,6 +171,142 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  Future<void> _selectOutputFolder() async {
+    try {
+      // Add a small delay to ensure proper isolate handling
+      await Future.delayed(const Duration(milliseconds: 100));
+
+      // Get the default path first and log it for debugging
+      String defaultPath = 'C:\\'; // Fallback
+      try {
+        defaultPath = await _getDefaultOutputPath();
+      } catch (e) {
+        defaultPath = 'C:\\';
+      }
+
+      String? selectedDirectory = await FilePicker.platform.getDirectoryPath(
+        dialogTitle: 'Select Output Folder',
+        initialDirectory: 'C:\\', // Use same simple approach as takeout folder
+      );
+
+      if (selectedDirectory != null) {
+        setState(() {
+          _outputFolderPath = selectedDirectory;
+          _isValidOutputFolder = false;
+          _hasWritePermissions = false;
+        });
+
+        // Validate the selected output folder
+        await _validateOutputFolder(selectedDirectory);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error selecting output folder: ${e.toString().substring(0, min(100, e.toString().length))}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<String> _getDefaultOutputPath() async {
+    // Use same simple approach as takeout folder - just return C:\
+    // The user can navigate to their preferred location from there
+    return 'C:\\';
+  }
+
+  Future<void> _validateOutputFolder(String folderPath) async {
+    try {
+      // Basic validation - check if folder exists or can be created
+      final directory = Directory(folderPath);
+
+      // Check if directory exists, if not, try to create it
+      bool exists = await directory.exists();
+      if (!exists) {
+        try {
+          await directory.create(recursive: true);
+          exists = true;
+        } catch (e) {
+          setState(() {
+            _isValidOutputFolder = false;
+            _hasWritePermissions = false;
+          });
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Cannot create output folder. Check permissions: ${e.toString().substring(0, min(80, e.toString().length))}'),
+                backgroundColor: Colors.red,
+                duration: const Duration(seconds: 4),
+              ),
+            );
+          }
+          return;
+        }
+      }
+
+      // Check write permissions by trying to create a test file
+      bool canWrite = false;
+      try {
+        final String testFilePath = path.join(folderPath, '.takeout_timefix_test');
+        final File testFile = File(testFilePath);
+        await testFile.writeAsString('test');
+        await testFile.delete(); // Clean up test file
+        canWrite = true;
+      } catch (e) {
+        canWrite = false;
+      }
+
+      setState(() {
+        _isValidOutputFolder = exists;
+        _hasWritePermissions = canWrite;
+      });
+
+      if (mounted) {
+        if (_isValidOutputFolder && _hasWritePermissions) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Output folder configured successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else if (_isValidOutputFolder && !_hasWritePermissions) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Output folder exists but no write permissions. Try a different location.'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Invalid output folder. Please select a different location.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      setState(() {
+        _isValidOutputFolder = false;
+        _hasWritePermissions = false;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error validating output folder: ${e.toString().substring(0, min(80, e.toString().length))}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -175,9 +317,10 @@ class _HomePageState extends State<HomePage> {
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
             // Header
             Card(
               child: Padding(
@@ -213,6 +356,114 @@ class _HomePageState extends State<HomePage> {
             ),
 
             const SizedBox(height: 24),
+
+            // Output Folder Configuration (Feature 2)
+            if (_isValidTakeoutFolder) ...[
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.output, color: Colors.blue),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Output Folder Configuration',
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Choose where you want the organized photos to be saved.',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton.icon(
+                        onPressed: _selectOutputFolder,
+                        icon: const Icon(Icons.folder_open),
+                        label: const Text('Select Output Folder'),
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 24),
+            ],
+
+            // Selected Output Folder Info
+            if (_outputFolderPath != null) ...[
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            _isValidOutputFolder && _hasWritePermissions
+                                ? Icons.check_circle
+                                : _isValidOutputFolder
+                                    ? Icons.warning
+                                    : Icons.error,
+                            color: _isValidOutputFolder && _hasWritePermissions
+                                ? Colors.green
+                                : _isValidOutputFolder
+                                    ? Colors.orange
+                                    : Colors.red,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Output Folder:',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _outputFolderPath!,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontFamily: 'monospace',
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Text(
+                            _isValidOutputFolder && _hasWritePermissions
+                                ? '✅ Ready for processing'
+                                : _isValidOutputFolder
+                                    ? '⚠️ No write permissions'
+                                    : '❌ Invalid folder',
+                            style: TextStyle(
+                              color: _isValidOutputFolder && _hasWritePermissions
+                                  ? Colors.green
+                                  : _isValidOutputFolder
+                                      ? Colors.orange
+                                      : Colors.red,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 24),
+            ],
 
             // Selected Folder Info
             if (_selectedFolderPath != null) ...[
@@ -263,7 +514,7 @@ class _HomePageState extends State<HomePage> {
             const Spacer(),
 
             // Next Steps Info
-            if (_isValidTakeoutFolder) ...[
+            if (_isValidTakeoutFolder && _isValidOutputFolder && _hasWritePermissions) ...[
               Card(
                 color: Theme.of(context).colorScheme.primaryContainer,
                 child: Padding(
@@ -272,14 +523,14 @@ class _HomePageState extends State<HomePage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Ready for Next Steps',
+                        'Ready for Processing',
                         style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           color: Theme.of(context).colorScheme.onPrimaryContainer,
                         ),
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'You can now proceed to configure the output folder and choose your organization method.',
+                        'Both takeout and output folders are configured. You can now proceed to choose your organization method and start processing.',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: Theme.of(context).colorScheme.onPrimaryContainer,
                         ),
@@ -292,6 +543,7 @@ class _HomePageState extends State<HomePage> {
           ],
         ),
       ),
-    );
+    ),
+  );
   }
 }
