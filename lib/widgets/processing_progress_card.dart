@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
+import 'dart:math';
+import 'package:rxdart/rxdart.dart';
 import '../services/processing_service.dart';
 import '../services/file_organization_service.dart';
 import '../utils/app_constants.dart';
@@ -20,7 +23,8 @@ class ProcessingProgressCard extends StatefulWidget {
   State<ProcessingProgressCard> createState() => _ProcessingProgressCardState();
 }
 
-class _ProcessingProgressCardState extends State<ProcessingProgressCard> {
+class _ProcessingProgressCardState extends State<ProcessingProgressCard>
+  with TickerProviderStateMixin {
   final ProcessingService _processingService = ProcessingService();
   bool _isProcessing = false;
   String _currentStatus = '';
@@ -28,31 +32,80 @@ class _ProcessingProgressCardState extends State<ProcessingProgressCard> {
   String _elapsedTime = '';
   String? _estimatedTime;
   ProcessingResult? _result;
+  Timer? _timeUpdateTimer;
+  late AnimationController _animationController;
 
   @override
   void initState() {
     super.initState();
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 100),
+      vsync: this,
+    )..repeat();
     _setupProgressListeners();
+    _startTimeUpdateTimer();
+  }
+
+  StreamSubscription? _elapsedTimeSubscription;
+
+  void _startTimeUpdateTimer() {
+    // No longer needed - progress stream provides time updates
+    // Timer removed to reduce unnecessary rebuilds
+  }
+
+  void _startElapsedTimeUpdates() {
+    // Subscribe to periodic elapsed time updates (less frequent than progress updates)
+    _elapsedTimeSubscription = Stream.periodic(
+      const Duration(seconds: 1), // Update every second, not 2
+      (_) => _processingService.getStats().elapsedTime,
+    ).listen((elapsedTime) {
+      if (mounted && _isProcessing) {
+        setState(() {
+          _elapsedTime = _formatDuration(elapsedTime);
+        });
+      } else {
+        _elapsedTimeSubscription?.cancel();
+      }
+    });
   }
 
   void _setupProgressListeners() {
-    _processingService.progressStream.listen((progress) {
-      if (mounted) {
-        setState(() {
-          _progress = progress.percentage / 100.0;
-          _elapsedTime = _formatDuration(progress.elapsedTime);
-          _isProcessing = !progress.isCompleted;
-        });
-      }
-    });
+    // Listen to progress updates with improved responsiveness
+    _processingService.progressStream
+      .debounceTime(const Duration(milliseconds: 50)) // Reduced debounce time
+      .distinct((prev, next) => prev.percentage == next.percentage)
+      .listen((progress) {
+        if (mounted) {
+          setState(() {
+            _progress = progress.percentage / 100.0;
+            _elapsedTime = _formatDuration(progress.elapsedTime);
+            _isProcessing = !progress.isCompleted;
+          });
+        }
+      });
 
-    _processingService.statusStream.listen((status) {
-      if (mounted) {
-        setState(() {
-          _currentStatus = status;
-        });
-      }
-    });
+    // Listen to status updates
+    _processingService.statusStream
+      .debounceTime(const Duration(milliseconds: 25)) // Reduced debounce time
+      .distinct()
+      .listen((status) {
+        if (mounted && status != _currentStatus) {
+          setState(() {
+            _currentStatus = status;
+          });
+        }
+      });
+
+    // Listen for errors
+    _processingService.errorStream
+      .debounceTime(const Duration(milliseconds: 100))
+      .listen((error) {
+        if (mounted) {
+          setState(() {
+            _currentStatus = 'Error: $error';
+          });
+        }
+      });
   }
 
   Future<void> _startProcessing() async {
@@ -62,6 +115,10 @@ class _ProcessingProgressCardState extends State<ProcessingProgressCard> {
       _currentStatus = 'Initializing...';
       _result = null;
     });
+
+    // Start optimized elapsed time updates
+    _elapsedTimeSubscription?.cancel();
+    _startElapsedTimeUpdates();
 
     final config = ProcessingConfig(
       inputDirectory: widget.inputDirectory,
@@ -234,10 +291,18 @@ class _ProcessingProgressCardState extends State<ProcessingProgressCard> {
                   child: ElevatedButton.icon(
                     onPressed: _isProcessing ? null : _startProcessing,
                     icon: _isProcessing
-                        ? const SizedBox(
+                        ? SizedBox(
                             width: 16,
                             height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
+                            child: AnimatedBuilder(
+                              animation: _animationController,
+                              builder: (context, child) {
+                                return Transform.rotate(
+                                  angle: _animationController.value * 2 * pi,
+                                  child: const Icon(Icons.refresh, size: 16),
+                                );
+                              },
+                            ),
                           )
                         : const Icon(Icons.play_arrow),
                     label: Text(_isProcessing ? 'Processing...' : 'Start Processing'),
@@ -332,6 +397,8 @@ class _ProcessingProgressCardState extends State<ProcessingProgressCard> {
 
   @override
   void dispose() {
+    _elapsedTimeSubscription?.cancel();
+    _animationController.dispose();
     _processingService.reset();
     super.dispose();
   }

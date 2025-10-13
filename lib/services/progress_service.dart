@@ -12,6 +12,8 @@ class ProgressService {
   Timer? _updateTimer;
   DateTime? _startTime;
   int _lastReportedProgress = 0;
+  DateTime? _lastUpdateTime;
+  static const Duration _minUpdateInterval = Duration(milliseconds: 200);
 
   /// Public streams for listening to updates
   Stream<ProgressUpdate> get progressStream => _progressController.stream;
@@ -41,8 +43,8 @@ class ProgressService {
       elapsedTime: Duration.zero,
     ));
 
-    // Start periodic updates every 100ms
-    _updateTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
+    // Start periodic updates every 500ms (reduced frequency to improve performance)
+    _updateTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
       if (_currentState != OperationState.running) {
         timer.cancel();
       }
@@ -56,12 +58,16 @@ class ProgressService {
     final totalSteps = _getCurrentTotalSteps();
     if (totalSteps == 0) return;
 
+    final now = DateTime.now();
     final percentage = (currentStep / totalSteps) * 100;
-    final elapsedTime = _startTime != null ? DateTime.now().difference(_startTime!) : Duration.zero;
+    final elapsedTime = _startTime != null ? now.difference(_startTime!) : Duration.zero;
 
-    // Only report progress if it changed significantly (avoid spam)
-    if (currentStep - _lastReportedProgress >= 1 || percentage >= 100) {
+    // Enhanced throttling: check time interval and progress significance
+    final shouldUpdate = _shouldUpdateProgress(currentStep, percentage, now);
+
+    if (shouldUpdate) {
       _lastReportedProgress = currentStep;
+      _lastUpdateTime = now;
 
       final progress = ProgressUpdate(
         currentStep: currentStep,
@@ -79,6 +85,53 @@ class ProgressService {
       }
     }
   }
+
+  /// Determine if progress should be updated based on throttling rules
+  bool _shouldUpdateProgress(int currentStep, double percentage, DateTime now) {
+    // Always update at completion
+    if (percentage >= 100) return true;
+
+    // Check minimum time interval since last update
+    if (_lastUpdateTime != null) {
+      final timeSinceLastUpdate = now.difference(_lastUpdateTime!);
+      if (timeSinceLastUpdate < _minUpdateInterval) {
+        return false;
+      }
+    }
+
+    // Update every N steps (batch updates)
+    const int updateBatchSize = 5;
+    if (currentStep % updateBatchSize == 0) return true;
+
+    // Update if progress changed significantly (at least 2%)
+    if (_lastReportedProgress > 0) {
+      final progressDiff = ((currentStep - _lastReportedProgress) / _getCurrentTotalSteps()) * 100;
+      if (progressDiff >= 2.0) return true;
+    }
+
+    return false;
+  }
+
+  /// Check if we should update based on time interval to ensure elapsed time updates
+  bool _shouldUpdateTime() {
+    if (_startTime == null) return false;
+
+    final now = DateTime.now();
+
+    // Initialize last update time if not set
+    _lastTimeUpdate ??= now;
+
+    // Update every 2 seconds to keep elapsed time current
+    final shouldUpdate = now.difference(_lastTimeUpdate!).inSeconds >= 2;
+
+    if (shouldUpdate) {
+      _lastTimeUpdate = now;
+    }
+
+    return shouldUpdate;
+  }
+
+  DateTime? _lastTimeUpdate;
 
   /// Report an error during the operation
   void reportError(String error, {bool isFatal = false}) {
@@ -126,6 +179,7 @@ class ProgressService {
     _currentState = OperationState.idle;
     _startTime = null;
     _lastReportedProgress = 0;
+    _lastUpdateTime = null;
     _updateTimer?.cancel();
   }
 
