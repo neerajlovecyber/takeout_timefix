@@ -93,6 +93,16 @@ class FileOrganizationService {
     // Copy or move file to target location (synchronous for performance)
     final targetFile = _copyFileToTarget(sourceFile, targetPath);
 
+    // Preserve ORIGINAL timestamp from Media object (matches example script approach)
+    if (media.dateTaken != null) {
+      try {
+        targetFile.setLastModifiedSync(media.dateTaken!);
+      } catch (e) {
+        // Handle cases where timestamp setting fails (matches example script error handling)
+        print("WARNING: Can't set modification time on $targetFile: $e");
+      }
+    }
+
     return OrganizedFile(
       sourceFile: sourceFile,
       targetFile: targetFile,
@@ -130,6 +140,16 @@ class FileOrganizationService {
 
     // Copy or move file to target location (async)
     final targetFile = await _copyFileToTargetAsync(sourceFile, targetPath);
+
+    // Preserve ORIGINAL timestamp from Media object (matches example script approach)
+    if (media.dateTaken != null) {
+      try {
+        await targetFile.setLastModified(media.dateTaken!);
+      } catch (e) {
+        // Handle cases where timestamp setting fails (matches example script error handling)
+        print("WARNING: Can't set modification time on $targetFile: $e");
+      }
+    }
 
     return OrganizedFile(
       sourceFile: sourceFile,
@@ -208,16 +228,15 @@ class FileOrganizationService {
 
   /// Get fallback target path when no date is available
   String _getFallbackTargetPath(Media media, String outputDirectory, OrganizationMode mode, bool preserveOriginalFilename) {
-    final timestamp = DateTime.now();
-    final fallbackDate = '${timestamp.year}${timestamp.month.toString().padLeft(2, '0')}${timestamp.day.toString().padLeft(2, '0')}_${timestamp.hour.toString().padLeft(2, '0')}${timestamp.minute.toString().padLeft(2, '0')}${timestamp.second.toString().padLeft(2, '0')}';
-
+    // Match original script: use 'date-unknown' folder name
     if (preserveOriginalFilename) {
       final originalName = path.basename(media.primaryFile!.path);
-      return path.join(outputDirectory, 'date-unknown', originalName); // Match original
+      return path.join(outputDirectory, 'date-unknown', originalName);
     } else {
       final extension = path.extension(media.primaryFile!.path);
-      final newFilename = '${fallbackDate}_no_date$extension';
-      return path.join(outputDirectory, 'date-unknown', newFilename); // Match original
+      final baseName = path.basenameWithoutExtension(media.primaryFile!.path);
+      final newFilename = '${baseName}_no_date$extension';
+      return path.join(outputDirectory, 'date-unknown', newFilename);
     }
   }
 
@@ -225,15 +244,15 @@ class FileOrganizationService {
   File _copyFileToTarget(File sourceFile, String targetPath) {
     var finalTargetPath = targetPath;
     final targetFile = File(targetPath);
-
+  
     // Handle filename conflicts (synchronous for performance)
     if (targetFile.existsSync()) {
       finalTargetPath = _resolveFilenameConflictSync(targetPath);
     }
-
+  
     // Copy the file (synchronous for performance)
     sourceFile.copySync(finalTargetPath);
-
+  
     return File(finalTargetPath);
   }
 
@@ -241,15 +260,15 @@ class FileOrganizationService {
   Future<File> _copyFileToTargetAsync(File sourceFile, String targetPath) async {
     var finalTargetPath = targetPath;
     final targetFile = File(targetPath);
-
+  
     // Handle filename conflicts (async)
     if (await targetFile.exists()) {
       finalTargetPath = await _resolveFilenameConflictAsync(targetPath);
     }
-
+  
     // Copy the file (async)
     await sourceFile.copy(finalTargetPath);
-
+  
     return File(finalTargetPath);
   }
 

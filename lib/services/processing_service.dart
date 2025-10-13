@@ -250,16 +250,9 @@ class ProcessingService {
         // Extract timestamp for file (direct like original)
         final media = await _extractTimestampForFile(file);
 
-        if (media.dateTaken != null) {
-          mediaList.add(media);
-        } else {
-          _errorService.logError(
-            message: 'No timestamp could be extracted',
-            filePath: file.path,
-            severity: ErrorSeverity.warning,
-            category: ErrorCategory.metadataExtraction,
-          );
-        }
+        // Include ALL files in processing, even those without timestamps
+        // Files without timestamps will go to date-unknown folder during organization
+        mediaList.add(media);
       } catch (e) {
         _errorService.logError(
           message: 'Failed to process file: $e',
@@ -299,16 +292,9 @@ class ProcessingService {
           file, jsonExtractor, exifExtractor, filenameExtractor
         );
 
-        if (media.dateTaken != null) {
-          mediaList.add(media);
-        } else {
-          errorService.logError(
-            message: 'No timestamp could be extracted',
-            filePath: file.path,
-            severity: ErrorSeverity.warning,
-            category: ErrorCategory.metadataExtraction,
-          );
-        }
+        // Include ALL files in processing, even those without timestamps
+        // Files without timestamps will go to date-unknown folder during organization
+        mediaList.add(media);
       } catch (e) {
         errorService.logError(
           message: 'Failed to process file: $e',
@@ -381,12 +367,32 @@ class ProcessingService {
       );
     }
 
-    // Method 4: File system date (fallback)
+    // Method 4: File system date (fallback) - MATCH EXAMPLE SCRIPT
     try {
       final fileStat = await file.stat();
-      final fileSystemDate = fileStat.modified; // or accessed/created
-      media.dateTaken = fileSystemDate;
-      media.dateTakenAccuracy = 3; // Fallback
+
+      // Check if this file was recently modified (likely ZIP extraction)
+      final daysSinceModified = DateTime.now().difference(fileStat.modified).inDays;
+
+      if (daysSinceModified < 30) { // Less than 30 days ago - likely extraction
+        // DON'T set dateTaken - let it go to date-unknown folder instead
+        _errorService.logError(
+          message: 'File appears recently extracted, putting in date-unknown folder',
+          filePath: file.path,
+          severity: ErrorSeverity.info,
+          category: ErrorCategory.metadataExtraction,
+        );
+        return media; // Return with dateTaken = null
+      }
+
+      // For older files, use creation time if available
+      if (fileStat.changed.millisecondsSinceEpoch > 0) {
+        media.dateTaken = fileStat.changed;
+        media.dateTakenAccuracy = 3; // Fallback
+      } else {
+        // File is old but no proper creation time - put in date-unknown
+        return media; // Return with dateTaken = null
+      }
     } catch (e) {
       _errorService.logError(
         message: 'File system date extraction failed: $e',
@@ -445,12 +451,26 @@ class ProcessingService {
       // Log error would need error service passed in if needed
     }
 
-    // Method 4: File system date (fallback)
+    // Method 4: File system date (fallback) - MATCH EXAMPLE SCRIPT
     try {
       final fileStat = await file.stat();
-      final fileSystemDate = fileStat.modified; // or accessed/created
-      media.dateTaken = fileSystemDate;
-      media.dateTakenAccuracy = 3; // Fallback
+
+      // Check if this file was recently modified (likely ZIP extraction)
+      final daysSinceModified = DateTime.now().difference(fileStat.modified).inDays;
+
+      if (daysSinceModified < 30) { // Less than 30 days ago - likely extraction
+        // DON'T set dateTaken - let it go to date-unknown folder instead
+        return media; // Return with dateTaken = null
+      }
+
+      // For older files, use creation time if available
+      if (fileStat.changed.millisecondsSinceEpoch > 0) {
+        media.dateTaken = fileStat.changed;
+        media.dateTakenAccuracy = 3; // Fallback
+      } else {
+        // File is old but no proper creation time - put in date-unknown
+        return media; // Return with dateTaken = null
+      }
     } catch (e) {
       // Log error would need error service passed in if needed
     }
