@@ -460,11 +460,14 @@ class ProcessingService {
 
   /// Phase 3: Process duplicates and merge them
   Future<List<Media>> _processDuplicates(List<Media> mediaList) async {
-    _progressService.updateProgress(55, statusMessage: 'Detecting duplicates...');
+    _progressService.updateProgress(52, statusMessage: 'Starting duplicate detection...');
 
     try {
-      // Group media by hash to find duplicates
+      // Group media by hash to find duplicates with progress updates
+      _progressService.updateProgress(55, statusMessage: 'Grouping files by hash...');
       final hashGroups = await _duplicateService.groupMediaByHash(mediaList);
+
+      _progressService.updateProgress(65, statusMessage: 'Merging duplicate groups...');
 
       // Merge duplicate groups
       final mergedMedia = _duplicateService.mergeDuplicates(hashGroups);
@@ -472,6 +475,8 @@ class ProcessingService {
       // Add any media that couldn't be hashed (treat as unique)
       final unhashableMedia = mediaList.where((media) => media.hash == null).toList();
       mergedMedia.addAll(unhashableMedia);
+
+      _progressService.updateProgress(75, statusMessage: 'Duplicate detection complete, ${mergedMedia.length} unique files');
 
       return mergedMedia;
     } catch (e) {
@@ -518,15 +523,22 @@ class ProcessingService {
 
   /// Phase 4: Organize files into the target structure
   Future<OrganizationResult> _organizeFiles(List<Media> mediaList) async {
-    _progressService.updateProgress(75, statusMessage: 'Organizing files...');
+    _progressService.updateProgress(78, statusMessage: 'Preparing file organization...');
 
     try {
-      return await _organizationService.organizeFiles(
+      // Update progress as files are being organized
+      _progressService.updateProgress(80, statusMessage: 'Creating directories and organizing ${mediaList.length} files...');
+
+      final result = await _organizationService.organizeFiles(
         mediaList,
         _config.outputDirectory,
         _config.organizationMode,
         preserveOriginalFilename: _config.preserveOriginalFilename,
       );
+
+      _progressService.updateProgress(100, statusMessage: 'Successfully organized ${result.successfulFiles}/${result.totalFiles} files');
+
+      return result;
     } catch (e) {
       _errorService.logError(
         message: 'File organization failed: $e',

@@ -27,22 +27,32 @@ class FileOrganizationService {
     final organizedFiles = <OrganizedFile>[];
     final errors = <String>[];
 
-    // Create output directory if it doesn't exist
-    _ensureDirectoryExists(outputDirectory);
+    // Create output directory if it doesn't exist (async)
+    await _ensureDirectoryExistsAsync(outputDirectory);
 
-    for (final media in mediaList) {
-      try {
-        final organizedFile = _organizeSingleMedia(
-          media,
-          outputDirectory,
-          mode,
-          preserveOriginalFilename: preserveOriginalFilename,
-          customDateFormat: customDateFormat,
-        );
-        organizedFiles.add(organizedFile);
-      } catch (e) {
-        errors.add('Failed to organize ${media.primaryFile?.path}: $e');
+    // Process files with progress-aware batching
+    const batchSize = 10; // Process in smaller batches for better responsiveness
+    for (int i = 0; i < mediaList.length; i += batchSize) {
+      final endIndex = (i + batchSize < mediaList.length) ? i + batchSize : mediaList.length;
+      final batch = mediaList.sublist(i, endIndex);
+
+      for (final media in batch) {
+        try {
+          final organizedFile = await _organizeSingleMediaAsync(
+            media,
+            outputDirectory,
+            mode,
+            preserveOriginalFilename: preserveOriginalFilename,
+            customDateFormat: customDateFormat,
+          );
+          organizedFiles.add(organizedFile);
+        } catch (e) {
+          errors.add('Failed to organize ${media.primaryFile?.path}: $e');
+        }
       }
+
+      // Yield control to allow UI updates during processing
+      await Future.delayed(const Duration(milliseconds: 1));
     }
 
     return OrganizationResult(
@@ -82,6 +92,44 @@ class FileOrganizationService {
 
     // Copy or move file to target location (synchronous for performance)
     final targetFile = _copyFileToTarget(sourceFile, targetPath);
+
+    return OrganizedFile(
+      sourceFile: sourceFile,
+      targetFile: targetFile,
+      organizationMode: mode,
+      dateTaken: media.dateTaken,
+      dateAccuracy: media.dateTakenAccuracy,
+    );
+  }
+
+  /// Organize a single media file (async version to prevent UI blocking)
+  Future<OrganizedFile> _organizeSingleMediaAsync(
+    Media media,
+    String outputDirectory,
+    OrganizationMode mode, {
+    bool preserveOriginalFilename = false,
+    String? customDateFormat,
+  }) async {
+    final sourceFile = media.primaryFile;
+    if (sourceFile == null) {
+      throw Exception('No primary file found for media');
+    }
+
+    // Determine target path based on organization mode
+    final targetPath = _getTargetPath(
+      media,
+      outputDirectory,
+      mode,
+      preserveOriginalFilename: preserveOriginalFilename,
+      customDateFormat: customDateFormat,
+    );
+
+    // Ensure target directory exists (async)
+    final targetDir = path.dirname(targetPath);
+    await _ensureDirectoryExistsAsync(targetDir);
+
+    // Copy or move file to target location (async)
+    final targetFile = await _copyFileToTargetAsync(sourceFile, targetPath);
 
     return OrganizedFile(
       sourceFile: sourceFile,
@@ -189,6 +237,22 @@ class FileOrganizationService {
     return File(finalTargetPath);
   }
 
+  /// Copy file to target location with conflict resolution (async version)
+  Future<File> _copyFileToTargetAsync(File sourceFile, String targetPath) async {
+    var finalTargetPath = targetPath;
+    final targetFile = File(targetPath);
+
+    // Handle filename conflicts (async)
+    if (await targetFile.exists()) {
+      finalTargetPath = await _resolveFilenameConflictAsync(targetPath);
+    }
+
+    // Copy the file (async)
+    await sourceFile.copy(finalTargetPath);
+
+    return File(finalTargetPath);
+  }
+
   /// Resolve filename conflicts by adding a suffix (synchronous for performance)
   String _resolveFilenameConflictSync(String targetPath) {
     final directory = path.dirname(targetPath);
@@ -206,11 +270,36 @@ class FileOrganizationService {
     return newPath;
   }
 
+  /// Resolve filename conflicts by adding a suffix (async version)
+  Future<String> _resolveFilenameConflictAsync(String targetPath) async {
+    final directory = path.dirname(targetPath);
+    final filename = path.basenameWithoutExtension(targetPath);
+    final extension = path.extension(targetPath);
+
+    int counter = 1;
+    String newPath;
+
+    do {
+      newPath = path.join(directory, '$filename($counter)$extension');
+      counter++;
+    } while (await File(newPath).exists());
+
+    return newPath;
+  }
+
   /// Ensure directory exists, creating it if necessary (synchronous for performance)
   void _ensureDirectoryExists(String directoryPath) {
     final directory = Directory(directoryPath);
     if (!directory.existsSync()) {
       directory.createSync(recursive: true);
+    }
+  }
+
+  /// Ensure directory exists, creating it if necessary (async version)
+  Future<void> _ensureDirectoryExistsAsync(String directoryPath) async {
+    final directory = Directory(directoryPath);
+    if (!await directory.exists()) {
+      await directory.create(recursive: true);
     }
   }
 
