@@ -315,231 +315,241 @@ class _HomePageState extends State<HomePage> {
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         elevation: 2,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Header
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Google Photos Takeout Organizer',
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Select the folder containing your unzipped Google Photos takeout files to begin organizing them by date.',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                  ],
-                ),
-              ),
+      body: SingleChildScrollView(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            minHeight: MediaQuery.of(context).size.height - kToolbarHeight,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.only(
+              left: 16.0,
+              right: 16.0,
+              top: 16.0,
+              bottom: 24.0,
             ),
-
-            const SizedBox(height: 24),
-
-            // Folder Selection Button
-            ElevatedButton.icon(
-              onPressed: _selectTakeoutFolder,
-              icon: const Icon(Icons.folder_open),
-              label: const Text('Select Takeout Folder'),
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-                textStyle: const TextStyle(fontSize: 16),
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // Output Folder Configuration (Feature 2)
-            if (_isValidTakeoutFolder) ...[
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(Icons.output, color: Colors.blue),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Output Folder Configuration',
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Choose where you want the organized photos to be saved.',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      const SizedBox(height: 16),
-                      ElevatedButton.icon(
-                        onPressed: _selectOutputFolder,
-                        icon: const Icon(Icons.folder_open),
-                        label: const Text('Select Output Folder'),
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Header
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Google Photos Takeout Organizer',
+                          style: Theme.of(context).textTheme.headlineSmall,
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 8),
+                        Text(
+                          'Select the folder containing your unzipped Google Photos takeout files to begin organizing them by date.',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
 
-              const SizedBox(height: 24),
-            ],
+                const SizedBox(height: 24),
 
-            // Selected Output Folder Info
-            if (_outputFolderPath != null) ...[
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
+                // Folder Selection Button
+                ElevatedButton.icon(
+                  onPressed: _selectTakeoutFolder,
+                  icon: const Icon(Icons.folder_open),
+                  label: const Text('Select Takeout Folder'),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+                    textStyle: const TextStyle(fontSize: 16),
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                // Output Folder Configuration (Feature 2)
+                if (_isValidTakeoutFolder) ...[
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(
-                            _isValidOutputFolder && _hasWritePermissions
-                                ? Icons.check_circle
-                                : _isValidOutputFolder
-                                    ? Icons.warning
-                                    : Icons.error,
-                            color: _isValidOutputFolder && _hasWritePermissions
-                                ? Colors.green
-                                : _isValidOutputFolder
-                                    ? Colors.orange
-                                    : Colors.red,
+                          Row(
+                            children: [
+                              const Icon(Icons.output, color: Colors.blue),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Output Folder Configuration',
+                                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'Output Folder:',
-                              style: Theme.of(context).textTheme.titleMedium,
+                          const SizedBox(height: 8),
+                          Text(
+                            'Choose where you want the organized photos to be saved.',
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                          const SizedBox(height: 16),
+                          ElevatedButton.icon(
+                            onPressed: _selectOutputFolder,
+                            icon: const Icon(Icons.folder_open),
+                            label: const Text('Select Output Folder'),
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _outputFolderPath!,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontFamily: 'monospace',
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+                ],
+
+                // Selected Output Folder Info
+                if (_outputFolderPath != null) ...[
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          Row(
+                            children: [
+                              Icon(
+                                _isValidOutputFolder && _hasWritePermissions
+                                    ? Icons.check_circle
+                                    : _isValidOutputFolder
+                                        ? Icons.warning
+                                        : Icons.error,
+                                color: _isValidOutputFolder && _hasWritePermissions
+                                    ? Colors.green
+                                    : _isValidOutputFolder
+                                        ? Colors.orange
+                                        : Colors.red,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Output Folder:',
+                                  style: Theme.of(context).textTheme.titleMedium,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
                           Text(
-                            _isValidOutputFolder && _hasWritePermissions
-                                ? '✅ Ready for processing'
-                                : _isValidOutputFolder
-                                    ? '⚠️ No write permissions'
-                                    : '❌ Invalid folder',
+                            _outputFolderPath!,
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              fontFamily: 'monospace',
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Text(
+                                _isValidOutputFolder && _hasWritePermissions
+                                    ? '✅ Ready for processing'
+                                    : _isValidOutputFolder
+                                        ? '⚠️ No write permissions'
+                                        : '❌ Invalid folder',
+                                style: TextStyle(
+                                  color: _isValidOutputFolder && _hasWritePermissions
+                                      ? Colors.green
+                                      : _isValidOutputFolder
+                                          ? Colors.orange
+                                          : Colors.red,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+                ],
+
+                // Selected Folder Info
+                if (_selectedFolderPath != null) ...[
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                _isValidTakeoutFolder ? Icons.check_circle : Icons.warning,
+                                color: _isValidTakeoutFolder ? Colors.green : Colors.orange,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Selected Folder:',
+                                  style: Theme.of(context).textTheme.titleMedium,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            _selectedFolderPath!,
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              fontFamily: 'monospace',
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            _isValidTakeoutFolder
+                                ? '✅ Found ${_imageFiles.length} image files'
+                                : '⚠️ No image files found in this folder',
                             style: TextStyle(
-                              color: _isValidOutputFolder && _hasWritePermissions
-                                  ? Colors.green
-                                  : _isValidOutputFolder
-                                      ? Colors.orange
-                                      : Colors.red,
+                              color: _isValidTakeoutFolder ? Colors.green : Colors.orange,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
                         ],
                       ),
-                    ],
+                    ),
                   ),
-                ),
-              ),
+                ],
 
-              const SizedBox(height: 24),
-            ],
-
-            // Selected Folder Info
-            if (_selectedFolderPath != null) ...[
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
+                // Next Steps Info
+                if (_isValidTakeoutFolder && _isValidOutputFolder && _hasWritePermissions) ...[
+                  Card(
+                    color: Theme.of(context).colorScheme.primaryContainer,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(
-                            _isValidTakeoutFolder ? Icons.check_circle : Icons.warning,
-                            color: _isValidTakeoutFolder ? Colors.green : Colors.orange,
+                          Text(
+                            'Ready for Processing',
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              color: Theme.of(context).colorScheme.onPrimaryContainer,
+                            ),
                           ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'Selected Folder:',
-                              style: Theme.of(context).textTheme.titleMedium,
+                          const SizedBox(height: 8),
+                          Text(
+                            'Both takeout and output folders are configured. You can now proceed to choose your organization method and start processing.',
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: Theme.of(context).colorScheme.onPrimaryContainer,
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _selectedFolderPath!,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontFamily: 'monospace',
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _isValidTakeoutFolder
-                            ? '✅ Found ${_imageFiles.length} image files'
-                            : '⚠️ No image files found in this folder',
-                        style: TextStyle(
-                          color: _isValidTakeoutFolder ? Colors.green : Colors.orange,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
-                ),
-              ),
-            ],
-
-            const Spacer(),
-
-            // Next Steps Info
-            if (_isValidTakeoutFolder && _isValidOutputFolder && _hasWritePermissions) ...[
-              Card(
-                color: Theme.of(context).colorScheme.primaryContainer,
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Ready for Processing',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.onPrimaryContainer,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Both takeout and output folders are configured. You can now proceed to choose your organization method and start processing.',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.onPrimaryContainer,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ],
+                ],
+              ],
+            ),
+          ),
         ),
       ),
     );
