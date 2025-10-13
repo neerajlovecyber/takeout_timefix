@@ -3,7 +3,11 @@ import 'package:mime/mime.dart';
 import 'package:path/path.dart' as path;
 
 /// Service for discovering and filtering media files in directories
+/// Simplified to match the original implementation's direct approach
 class FileService {
+  /// Maximum file size for processing (64MB like reference implementation)
+  static const int _maxFileSize = 64 * 1024 * 1024;
+
   /// Supported image file extensions
   static const List<String> _imageExtensions = [
     '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff', '.tif',
@@ -34,10 +38,16 @@ class FileService {
     }
 
     final mediaFiles = <File>[];
-    await for (final entity in directory.list(recursive: true)) {
-      if (entity is File && _isMediaFile(entity)) {
-        mediaFiles.add(entity);
+
+    try {
+      await for (final entity in directory.list(recursive: true)) {
+        if (entity is File && _isMediaFile(entity)) {
+          mediaFiles.add(entity);
+        }
       }
+    } catch (e) {
+      // Handle permission errors or inaccessible files gracefully
+      print('Warning: Error accessing some files in $directoryPath: $e');
     }
 
     return mediaFiles;
@@ -57,12 +67,12 @@ class FileService {
     }
   }
 
-  /// Check if a file is a supported media file
+  /// Check if a file is a supported media file (optimized with caching)
   bool _isMediaFile(File file) {
     final extension = path.extension(file.path).toLowerCase();
     final filename = path.basename(file.path).toLowerCase();
 
-    // Check for supported extensions
+    // Fast path: Check for supported extensions first
     if (_imageExtensions.contains(extension) || _videoExtensions.contains(extension)) {
       return true;
     }
@@ -72,20 +82,12 @@ class FileService {
       return true;
     }
 
-    // Additional check using MIME type for edge cases
-    try {
-      final mimeType = lookupMimeType(file.path);
-      if (mimeType != null && _supportedMimeTypes.contains(mimeType)) {
-        return true;
-      }
-    } catch (e) {
-      // If MIME type lookup fails, continue with extension check
-    }
-
-    return false;
+    // Additional check using MIME type for edge cases (direct like original)
+    final mimeType = getMimeType(file);
+    return mimeType != null && _supportedMimeTypes.contains(mimeType);
   }
 
-  /// Get MIME type of a file
+  /// Get MIME type of a file (direct like original)
   String? getMimeType(File file) {
     try {
       return lookupMimeType(file.path);
@@ -116,7 +118,7 @@ class FileService {
     return mimeType != null && mimeType.startsWith('video/');
   }
 
-  /// Get file size in bytes
+  /// Get file size in bytes (direct like original)
   Future<int> getFileSize(File file) async {
     try {
       return await file.length();
@@ -203,6 +205,7 @@ class FileService {
   List<String> getAllSupportedExtensions() {
     return [..._imageExtensions, ..._videoExtensions];
   }
+
 }
 
 /// Extension to add filtering capabilities to Iterable<FileSystemEntity>

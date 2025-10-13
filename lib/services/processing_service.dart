@@ -236,7 +236,7 @@ class ProcessingService {
     }
   }
 
-  /// Phase 2: Extract timestamps from all media files
+  /// Phase 2: Extract timestamps from all media files (simplified like original)
   Future<List<Media>> _extractTimestamps(List<File> files) async {
     final mediaList = <Media>[];
     final totalFiles = files.length;
@@ -247,13 +247,8 @@ class ProcessingService {
       final file = files[i];
 
       try {
-        // Add timeout for individual file processing to prevent hanging
-        final media = await _extractTimestampForFile(file).timeout(
-          const Duration(seconds: 30),
-          onTimeout: () {
-            throw TimeoutException('File processing timed out: ${file.path}');
-          }
-        );
+        // Extract timestamp for file (direct like original)
+        final media = await _extractTimestampForFile(file);
 
         if (media.dateTaken != null) {
           mediaList.add(media);

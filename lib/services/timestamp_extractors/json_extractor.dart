@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:path/path.dart' as path;
 
 /// Service for extracting timestamps from Google Photos JSON metadata files
+/// Simplified to match the original implementation's direct approach
 class JsonExtractor {
   /// Maximum filename length before trying alternative matching strategies
   static const int _maxFilenameLength = 51;
@@ -27,17 +28,17 @@ class JsonExtractor {
   /// Returns the DateTime if found, null otherwise
   Future<DateTime?> extractTimestamp(File mediaFile) async {
     try {
-      // Try to find the corresponding JSON file
+      // Try to find the corresponding JSON file (direct like original)
       final jsonFile = await _findJsonFile(mediaFile);
       if (jsonFile == null) {
         return null;
       }
 
-      // Parse the JSON metadata
+      // Parse the JSON metadata (direct like original)
       final jsonContent = await jsonFile.readAsString();
       final metadata = json.decode(jsonContent) as Map<String, dynamic>;
 
-      // Extract the photoTakenTime timestamp
+      // Extract the photoTakenTime timestamp (direct like original)
       return _extractPhotoTakenTime(metadata);
     } catch (e) {
       // JSON parsing failed, return null to try next extractor
@@ -45,18 +46,18 @@ class JsonExtractor {
     }
   }
 
-  /// Find the corresponding JSON file for a media file
+  /// Find the corresponding JSON file for a media file (direct like original)
   Future<File?> _findJsonFile(File mediaFile) async {
     final mediaPath = mediaFile.path;
     final mediaDir = path.dirname(mediaPath);
     final mediaName = path.basenameWithoutExtension(mediaPath);
     final mediaExt = path.extension(mediaPath);
 
-    // Strategy 1: Basic filename matching
+    // Strategy 1: Basic filename matching (direct like original)
     File? jsonFile = await _tryFindJsonFile(mediaDir, '$mediaName.json');
     if (jsonFile != null) return jsonFile;
 
-    // Strategy 2: Try-hard mode for problematic files
+    // Strategy 2: Try-hard mode for problematic files (direct like original)
     jsonFile = await _tryHardJsonMatching(mediaDir, mediaName, mediaExt);
     if (jsonFile != null) return jsonFile;
 
