@@ -11,20 +11,17 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:takeout_timefix/main.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
+  testWidgets('TakeoutTimeFix app loads correctly', (WidgetTester tester) async {
     // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(const TakeoutTimeFixApp());
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    // Verify that the app title is displayed.
+    expect(find.text('Takeout TimeFix'), findsOneWidget);
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    // Verify that the folder selection button is present.
+    expect(find.text('Select Takeout Folder'), findsOneWidget);
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    // Verify that the main description text is present.
+    expect(find.textContaining('Google Photos Takeout Organizer'), findsOneWidget);
   });
 }
