@@ -121,6 +121,48 @@ class DuplicateService {
     return hashGroups;
   }
 
+  /// Group media files by hash with progress callback for UI updates
+  Future<Map<String, List<Media>>> groupMediaByHashWithProgress(
+    List<Media> mediaList,
+    Function(double progress, String status)? onProgress,
+  ) async {
+    final hashGroups = <String, List<Media>>{};
+    final totalFiles = mediaList.length;
+
+    for (int i = 0; i < mediaList.length; i++) {
+      final media = mediaList[i];
+
+      try {
+        // Calculate hash for this media asynchronously (prevents UI blocking)
+        final hash = await media.hash;
+        final hashString = hash.toString();
+
+        if (hashGroups.containsKey(hashString)) {
+          hashGroups[hashString]!.add(media);
+        } else {
+          hashGroups[hashString] = [media];
+        }
+      } catch (e) {
+        // If hash calculation fails, treat as unique
+        final fallbackHash = 'error_${media.primaryFile?.path.hashCode ?? i}';
+        hashGroups[fallbackHash] = [media];
+      }
+
+      // Update progress every 10 files or at the end
+      if (i % 10 == 0 || i == mediaList.length - 1) {
+        final progress = i / totalFiles;
+        onProgress?.call(progress, 'Calculated hash for ${i + 1}/$totalFiles files');
+      }
+
+      // Yield control more frequently to allow UI updates during processing
+      if (i % 20 == 0) {
+        await Future.delayed(const Duration(milliseconds: 1));
+      }
+    }
+
+    return hashGroups;
+  }
+
   /// Remove duplicates from a list, keeping the first occurrence of each file (simplified)
   List<Media> removeDuplicates(List<Media> mediaList) {
     final uniqueMedia = <Media>[];
@@ -140,6 +182,63 @@ class DuplicateService {
   }
 
   /// Merge duplicate media files by combining their album associations
+  Future<List<Media>> mergeDuplicatesWithProgress(
+    Map<String, List<Media>> duplicateGroups,
+    Function(double progress, String status)? onProgress,
+  ) async {
+    final mergedMedia = <Media>[];
+    final totalGroups = duplicateGroups.length;
+    int processedGroups = 0;
+
+    for (final duplicateList in duplicateGroups.values) {
+      if (duplicateList.isEmpty) {
+        processedGroups++;
+        continue;
+      }
+
+      // Start with the first media file
+      final primaryMedia = duplicateList.first;
+      final mergedFiles = <String?, File>{};
+
+      // Add all files from all duplicates
+      for (final media in duplicateList) {
+        mergedFiles.addAll(media.files);
+
+        // Use the most accurate timestamp if available
+        if (media.dateTaken != null &&
+            (primaryMedia.dateTaken == null ||
+             (media.dateTakenAccuracy ?? 999) < (primaryMedia.dateTakenAccuracy ?? 999))) {
+          primaryMedia.dateTaken = media.dateTaken;
+          primaryMedia.dateTakenAccuracy = media.dateTakenAccuracy;
+        }
+      }
+
+      // Create merged media with combined files (simplified constructor)
+      final merged = Media(
+        mergedFiles,
+        dateTaken: primaryMedia.dateTaken,
+        dateTakenAccuracy: primaryMedia.dateTakenAccuracy,
+      );
+
+      mergedMedia.add(merged);
+
+      // Update progress
+      processedGroups++;
+      if (processedGroups % 5 == 0 || processedGroups == totalGroups) {
+        final progress = processedGroups / totalGroups;
+        onProgress?.call(progress, 'Merged $processedGroups/$totalGroups duplicate groups');
+      }
+
+      // Yield control to allow UI updates
+      if (processedGroups % 10 == 0) {
+        await Future.delayed(const Duration(milliseconds: 1));
+      }
+    }
+
+    return mergedMedia;
+  }
+
+  /// Merge duplicate media files by combining their album associations (sync version for compatibility)
   List<Media> mergeDuplicates(Map<String, List<Media>> duplicateGroups) {
     final mergedMedia = <Media>[];
 

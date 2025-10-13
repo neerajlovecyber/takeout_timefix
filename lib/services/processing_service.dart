@@ -464,13 +464,28 @@ class ProcessingService {
 
     try {
       // Group media by hash to find duplicates with progress updates
-      _progressService.updateProgress(55, statusMessage: 'Grouping files by hash...');
-      final hashGroups = await _duplicateService.groupMediaByHash(mediaList);
+      _progressService.updateProgress(55, statusMessage: 'Calculating file hashes...');
 
-      _progressService.updateProgress(65, statusMessage: 'Merging duplicate groups...');
+      final hashGroups = await _duplicateService.groupMediaByHashWithProgress(
+        mediaList,
+        (progress, status) {
+          // Update progress during hash calculation (55-62% range)
+          final progressValue = 55 + (progress * 7); // Spread over 7% range
+          _progressService.updateProgress(progressValue.round(), statusMessage: status);
+        },
+      );
 
-      // Merge duplicate groups
-      final mergedMedia = _duplicateService.mergeDuplicates(hashGroups);
+      _progressService.updateProgress(62, statusMessage: 'Merging duplicate groups...');
+
+      // Merge duplicate groups with progress updates
+      final mergedMedia = await _duplicateService.mergeDuplicatesWithProgress(
+        hashGroups,
+        (progress, status) {
+          // Update progress during merging (62-70% range)
+          final progressValue = 62 + (progress * 8); // Spread over 8% range
+          _progressService.updateProgress(progressValue.round(), statusMessage: status);
+        },
+      );
 
       // Add any media that couldn't be hashed (treat as unique)
       final unhashableMedia = mediaList.where((media) => media.hash == null).toList();
