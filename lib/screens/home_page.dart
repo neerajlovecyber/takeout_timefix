@@ -22,6 +22,7 @@ class _HomePageState extends State<HomePage> {
 
   FolderState _folderState = const FolderState();
   OutputFolderConfig _outputConfig = const OutputFolderConfig();
+  bool _guessFromFolderName = false;
 
   Future<void> _selectTakeoutFolder() async {
     try {
@@ -277,6 +278,17 @@ class _HomePageState extends State<HomePage> {
                             label: AppConstants.selectOutputFolder,
                             icon: Icons.folder_open,
                           ),
+                          const SizedBox(height: AppConstants.mediumSpacing),
+                          CheckboxListTile(
+                            title: const Text("Guess date from folder name"),
+                            value: _guessFromFolderName,
+                            onChanged: (newValue) {
+                              setState(() {
+                                _guessFromFolderName = newValue!;
+                              });
+                            },
+                            controlAffinity: ListTileControlAffinity.leading,
+                          ),
 
                           // Selected Output Folder Info (shown under the button)
                           if (_outputConfig.outputFolderPath != null) ...[
@@ -367,6 +379,7 @@ class _HomePageState extends State<HomePage> {
                     ProcessingProgressCard(
                       inputDirectory: _folderState.selectedFolderPath!,
                       outputDirectory: _outputConfig.outputFolderPath!,
+                      guessFromFolderName: _guessFromFolderName,
                       onProcessingComplete: () {
                         // Refresh the folder state to show updated file counts
                         if (_folderState.selectedFolderPath != null) {

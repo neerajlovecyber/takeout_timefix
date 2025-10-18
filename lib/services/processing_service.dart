@@ -11,6 +11,7 @@ import 'error_handling_service.dart';
 import 'timestamp_extractors/json_extractor.dart';
 import 'timestamp_extractors/exif_extractor.dart';
 import 'timestamp_extractors/filename_extractor.dart';
+import 'timestamp_extractors/folder_name_extractor.dart';
 
 /// Main service that coordinates the entire image processing pipeline
 class ProcessingService {
@@ -23,6 +24,7 @@ class ProcessingService {
   final JsonExtractor _jsonExtractor;
   final ExifExtractor _exifExtractor;
   final FilenameExtractor _filenameExtractor;
+  final FolderNameExtractor _folderNameExtractor = FolderNameExtractor();
 
   ProcessingService()
       : _fileService = FileService(),
@@ -221,6 +223,10 @@ class ProcessingService {
       },
     ];
 
+    if (_config.guessFromFolderName) {
+      extractors.add(() async => _folderNameExtractor.extractTimestamp(file));
+    }
+
     for (final extractor in extractors) {
       try {
         timestamp = await extractor();
@@ -361,12 +367,14 @@ class ProcessingConfig {
   final String outputDirectory;
   final OrganizationMode organizationMode;
   final bool preserveOriginalFilename;
+  final bool guessFromFolderName;
 
   const ProcessingConfig({
     required this.inputDirectory,
     required this.outputDirectory,
     required this.organizationMode,
     this.preserveOriginalFilename = false,
+    this.guessFromFolderName = false,
   });
 }
 

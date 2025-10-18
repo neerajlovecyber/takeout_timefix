@@ -10,12 +10,14 @@ import '../utils/app_constants.dart';
 class ProcessingProgressCard extends StatefulWidget {
   final String inputDirectory;
   final String outputDirectory;
+  final bool guessFromFolderName;
   final VoidCallback onProcessingComplete;
 
   const ProcessingProgressCard({
     super.key,
     required this.inputDirectory,
     required this.outputDirectory,
+    required this.guessFromFolderName,
     required this.onProcessingComplete,
   });
 
@@ -125,6 +127,7 @@ class _ProcessingProgressCardState extends State<ProcessingProgressCard>
       outputDirectory: widget.outputDirectory,
       organizationMode: OrganizationMode.yearMonthFolders, // Default mode
       preserveOriginalFilename: false,
+      guessFromFolderName: widget.guessFromFolderName,
     );
 
     try {
