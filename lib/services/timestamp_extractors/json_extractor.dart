@@ -1,183 +1,137 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:path/path.dart' as path;
 
-/// Service for extracting timestamps from Google Photos JSON metadata files
-/// Simplified to match the original implementation's direct approach
+import 'package:collection/collection.dart';
+import 'example_extras.dart' as extras;
+import 'example_utils.dart';
+import 'package:path/path.dart' as p;
+import 'package:unorm_dart/unorm_dart.dart' as unorm;
+
 class JsonExtractor {
-  /// Maximum filename length before trying alternative matching strategies
-  static const int _maxFilenameLength = 51;
+  Future<DateTime?> extractTimestamp(File file, {bool tryhard = false}) async {
+    return _jsonExtractor(file, tryhard: tryhard);
+  }
 
-  /// Multi-language edited suffixes to remove
-  static const List<String> _editedSuffixes = [
-    '-edited',
-    '-effects',
-    '-smile',
-    '-mix',
-    '-edytowane', // Polish
-    '-bearbeitet', // German
-    '-bewerkt', // Dutch
-    '-編集済み', // Japanese
-    '-modificato', // Italian
-    '-modifié', // French
-    '-ha editado', // Spanish
-    '-editat', // Catalan
-  ];
-
-  /// Extract timestamp from JSON metadata for the given media file
-  /// Returns the DateTime if found, null otherwise
-  Future<DateTime?> extractTimestamp(File mediaFile) async {
+  Future<DateTime?> _jsonExtractor(File file, {bool tryhard = false}) async {
+    final jsonFile = await _jsonForFile(file, tryhard: tryhard);
+    if (jsonFile == null) return null;
     try {
-      // Try to find the corresponding JSON file (synchronous for performance)
-      final jsonFile = _findJsonFile(mediaFile);
-      if (jsonFile == null) {
-        return null;
-      }
-
-      // Parse the JSON metadata (direct like original)
-      final jsonContent = await jsonFile.readAsString();
-      final metadata = json.decode(jsonContent) as Map<String, dynamic>;
-
-      // Extract the photoTakenTime timestamp (direct like original)
-      return _extractPhotoTakenTime(metadata);
-    } catch (e) {
-      // JSON parsing failed, return null to try next extractor
+      final data = jsonDecode(await jsonFile.readAsString());
+      final epoch = int.parse(data['photoTakenTime']['timestamp'].toString());
+      return DateTime.fromMillisecondsSinceEpoch(epoch * 1000);
+    } on FormatException catch (_) {
+      // this is when json is bad
+      return null;
+    } on FileSystemException catch (_) {
+      // this happens for issue #143
+      // "Failed to decode data using encoding 'utf-8'"
+      // maybe this will self-fix when dart itself support more encodings
+      return null;
+    } on NoSuchMethodError catch (_) {
+      // this is when tags like photoTakenTime aren't there
       return null;
     }
   }
 
-  /// Find the corresponding JSON file for a media file (synchronous for performance)
-  File? _findJsonFile(File mediaFile) {
-    final mediaPath = mediaFile.path;
-    final mediaDir = path.dirname(mediaPath);
-    final mediaName = path.basenameWithoutExtension(mediaPath);
-    final mediaExt = path.extension(mediaPath);
+  Future<File?> _jsonForFile(File file, {required bool tryhard}) async {
+    final dir = Directory(p.dirname(file.path));
+    var name = p.basename(file.path);
 
-    // Strategy 1: Basic filename matching (synchronous for performance)
-    File? jsonFile = _tryFindJsonFile(mediaDir, '$mediaName.json');
-    if (jsonFile != null) return jsonFile;
+    // First, check for supplemental metadata file
+    final supplementalJsonFile = File(p.join(dir.path, '$name.supplemental-metadata.json'));
+    if (await supplementalJsonFile.exists()) return supplementalJsonFile;
 
-    // Strategy 2: Try-hard mode for problematic files (synchronous for performance)
-    jsonFile = _tryHardJsonMatching(mediaDir, mediaName, mediaExt);
-    if (jsonFile != null) return jsonFile;
-
+    // will try all methods to strip name to find json
+    for (final method in [
+      // none
+      (String s) => s,
+      _shortenName,
+      // test: combining this with _shortenName?? which way around?
+      _bracketSwap,
+      _removeExtra,
+      _noExtension,
+      if (tryhard) ...[
+        _removeExtraRegex,
+        _removeDigit, // most files with '(digit)' have jsons, so it's last
+      ]
+    ]) {
+      final jsonFile = File(p.join(dir.path, '${method(name)}.json'));
+      if (await jsonFile.exists()) return jsonFile;
+    }
     return null;
   }
 
-  /// Try to find JSON file with basic filename matching (synchronous for performance)
-  File? _tryFindJsonFile(String directory, String jsonFilename) {
-    final jsonFile = File(path.join(directory, jsonFilename));
+  // if the originally file was uploaded without an extension, 
+  // (for example, "20030616" (jpg but without ext))
+  // it's json won't have the extension ("20030616.json"), but the image
+  // itself (after google proccessed it) - will ("20030616.jpg" tadam)
+  String _noExtension(String filename) =>
+      p.basenameWithoutExtension(File(filename).path);
 
-    try {
-      if (jsonFile.existsSync()) {
-        return jsonFile;
+  String _removeDigit(String filename) =>
+      filename.replaceAll(RegExp(r'\(\d\)\.'), '.');
+
+  /// This removes only strings defined in [extraFormats] list from `extras.dart`,
+  /// so it's pretty safe
+  String _removeExtra(String filename) {
+    // MacOS uses NFD that doesn't work with our accents 🙃🙃
+    // https://github.com/TheLastGimbus/GooglePhotosTakeoutHelper/pull/247
+    filename = unorm.nfc(filename);
+    for (final extra in extras.extraFormats) {
+      if (filename.contains(extra)) {
+        return filename.replaceLast(extra, '');
       }
-    } catch (e) {
-      // If synchronous check fails, return null
     }
-
-    return null;
+    return filename;
   }
 
-  /// Aggressive JSON matching for problematic files (synchronous for performance)
-  File? _tryHardJsonMatching(String directory, String mediaName, String mediaExt) {
-    // Strategy: Remove edited suffixes and try again
-    for (final suffix in _editedSuffixes) {
-      if (mediaName.contains(suffix)) {
-        final cleanedName = replaceLast(mediaName, suffix, '');
-        final jsonFile = _tryFindJsonFile(directory, '$cleanedName.json');
-        if (jsonFile != null) return jsonFile;
-
-        // Also try with extension added back
-        final jsonFileWithExt = _tryFindJsonFile(directory, '$cleanedName$mediaExt.json');
-        if (jsonFileWithExt != null) return jsonFileWithExt;
-      }
+  /// this will match:
+  /// ```
+  ///        '.extension' v  v end of string
+  /// something-edited(1).jpg
+  ///        extra ^   ^ optional number in '()'
+  ///
+  /// Result: something.jpg
+  /// ```
+  /// so it's *kinda* safe
+  String _removeExtraRegex(String filename) {
+    // MacOS uses NFD that doesn't work with our accents 🙃🙃
+    // https://github.com/TheLastGimbus/GooglePhotosTakeoutHelper/pull/247
+    filename = unorm.nfc(filename);
+    // include all characters, also with accents
+    final matches = RegExp(r'(?<extra>-[A-Za-zÀ-ÖØ-öø-ÿ]+(\(\d\))?)\.\w+$')
+        .allMatches(filename);
+    if (matches.length == 1) {
+      return filename.replaceAll(matches.first.namedGroup('extra')!, '');
     }
-
-    // Strategy: Handle bracket swapping (image(1).jpg → image.jpg(1).json)
-    final bracketPattern = RegExp(r'\((\d+)\)$');
-    final bracketMatch = bracketPattern.firstMatch(mediaName);
-    if (bracketMatch != null) {
-      final number = bracketMatch.group(1);
-      final nameWithoutBracket = mediaName.substring(0, bracketMatch.start);
-      final swappedName = '$nameWithoutBracket$mediaExt($number)';
-
-      final jsonFile = _tryFindJsonFile(directory, '$swappedName.json');
-      if (jsonFile != null) return jsonFile;
-    }
-
-    // Strategy: Remove digits from brackets
-    final digitBracketPattern = RegExp(r'\(\d+\)\.');
-    if (digitBracketPattern.hasMatch(mediaName)) {
-      final cleanedName = mediaName.replaceAll(digitBracketPattern, '.');
-      final jsonFile = _tryFindJsonFile(directory, '$cleanedName.json');
-      if (jsonFile != null) return jsonFile;
-    }
-
-    // Strategy: Try shortened names for very long filenames
-    if (mediaName.length > _maxFilenameLength) {
-      final shortenedName = mediaName.substring(0, _maxFilenameLength);
-      final jsonFile = _tryFindJsonFile(directory, '$shortenedName.json');
-      if (jsonFile != null) return jsonFile;
-    }
-
-    return null;
+    return filename;
   }
 
-  /// Extract photoTakenTime from JSON metadata
-  DateTime? _extractPhotoTakenTime(Map<String, dynamic> metadata) {
-    try {
-      // Navigate to photoTakenTime in the JSON structure
-      final photoMetadata = metadata['photoTakenTime'] as Map<String, dynamic>?;
-      if (photoMetadata == null) return null;
+  // this resolves years of bugs and head-scratches 😆
+  // f.e: https://github.com/TheLastGimbus/GooglePhotosTakeoutHelper/issues/8#issuecomment-736539592
+  String _shortenName(String filename) => '$filename.json'.length > 51
+      ? filename.substring(0, 51 - '.json'.length)
+      : filename;
 
-      final timestampSeconds = photoMetadata['timestamp'] as int?;
-      if (timestampSeconds == null) return null;
-
-      // Convert Unix timestamp to DateTime
-      return DateTime.fromMillisecondsSinceEpoch(timestampSeconds * 1000);
-    } catch (e) {
-      return null;
-    }
-  }
-
-  /// Check if a file is likely a Google Photos JSON metadata file
-  static bool isJsonMetadataFile(File file) {
-    final filename = path.basename(file.path).toLowerCase();
-    return filename.endsWith('.json') &&
-           !_isSystemFile(filename) &&
-           !_isUnrelatedJsonFile(filename);
-  }
-
-  /// Check if filename suggests a system or unrelated JSON file
-  static bool _isSystemFile(String filename) {
-    final systemPatterns = [
-      'desktop.ini',
-      'thumbs.db',
-      '.ds_store',
-      'metadata.json', // Different from individual photo metadata
-    ];
-
-    return systemPatterns.any((pattern) =>
-      filename.contains(pattern.toLowerCase()));
-  }
-
-  /// Check if this is an unrelated JSON file (not photo metadata)
-  static bool _isUnrelatedJsonFile(String filename) {
-    final unrelatedPatterns = [
-      'album.json',
-      'archive_browser.json',
-      'user_generated_memory.json',
-    ];
-
-    return unrelatedPatterns.any((pattern) =>
-      filename.contains(pattern.toLowerCase()));
-  }
-
-  /// Extension method to match original's replaceLast functionality
-  static String replaceLast(String original, String pattern, String replacement) {
-    final lastIndex = original.lastIndexOf(pattern);
-    if (lastIndex == -1) return original;
-    return original.replaceRange(lastIndex, lastIndex + pattern.length, replacement);
+  // thanks @casualsailo and @denouche for bringing attention!
+  // https://github.com/TheLastGimbus/GooglePhotosTakeoutHelper/issues/188
+  // and https://github.com/TheLastGimbus/GooglePhotosTakeoutHelper/issues/175
+  // issues helped to discover this
+  /// Some (actually quite a lot of) files go like:
+  /// image(11).jpg -> image.jpg(11).json
+  /// (swapped number in brackets)
+  ///
+  /// This function does just that, and by my current intuition tells me it's
+  /// pretty safe to use so I'll put it without the tryHard flag
+  // note: would be nice if we had some tougher tests for this
+  String _bracketSwap(String filename) {
+    // this is with the dot - more probable that it's just before the extension
+    final match = RegExp(r'\(\d+\)\.').allMatches(filename).lastOrNull;
+    if (match == null) return filename;
+    final bracket = match.group(0)!.replaceAll('.', ''); // remove dot
+    // remove only last to avoid errors with filenames like:
+    // 'image(3).(2)(3).jpg' <- "(3)." repeats twice
+    final withoutBracket = filename.replaceLast(bracket, '');
+    return '$withoutBracket$bracket';
   }
 }

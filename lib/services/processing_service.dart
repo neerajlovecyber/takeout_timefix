@@ -312,13 +312,15 @@ class ProcessingService {
   /// Extract timestamp for a single file using multiple methods
   Future<Media> _extractTimestampForFile(File file) async {
     final media = Media.single(file);
+    DateTime? timestamp;
+    int accuracy = 0;
 
     // Method 1: JSON metadata (most accurate)
     try {
-      final jsonTimestamp = await _jsonExtractor.extractTimestamp(file);
-      if (jsonTimestamp != null) {
-        media.dateTaken = jsonTimestamp;
-        media.dateTakenAccuracy = 0; // Most accurate
+      timestamp = await _jsonExtractor.extractTimestamp(file);
+      if (timestamp != null) {
+        media.dateTaken = timestamp;
+        media.dateTakenAccuracy = accuracy;
         return media;
       }
     } catch (e) {
@@ -330,13 +332,14 @@ class ProcessingService {
         exception: e as Exception?,
       );
     }
+    accuracy++;
 
     // Method 2: EXIF data (medium accuracy)
     try {
-      final exifTimestamp = await _exifExtractor.extractTimestamp(file);
-      if (exifTimestamp != null) {
-        media.dateTaken = exifTimestamp;
-        media.dateTakenAccuracy = 1; // Medium accuracy
+      timestamp = await _exifExtractor.extractTimestamp(file);
+      if (timestamp != null) {
+        media.dateTaken = timestamp;
+        media.dateTakenAccuracy = accuracy;
         return media;
       }
     } catch (e) {
@@ -348,13 +351,14 @@ class ProcessingService {
         exception: e as Exception?,
       );
     }
+    accuracy++;
 
     // Method 3: Filename pattern (least accurate)
     try {
-      final filenameTimestamp = _filenameExtractor.extractTimestamp(file);
-      if (filenameTimestamp != null) {
-        media.dateTaken = filenameTimestamp;
-        media.dateTakenAccuracy = 2; // Least accurate
+      timestamp = _filenameExtractor.extractTimestamp(file);
+      if (timestamp != null) {
+        media.dateTaken = timestamp;
+        media.dateTakenAccuracy = accuracy;
         return media;
       }
     } catch (e) {
@@ -366,16 +370,32 @@ class ProcessingService {
         exception: e as Exception?,
       );
     }
+    accuracy++;
 
-    // Method 4: File system date (fallback) - MATCH EXAMPLE SCRIPT
+    // Method 4: JSON metadata with tryhard (more aggressive)
+    try {
+      timestamp = await _jsonExtractor.extractTimestamp(file, tryhard: true);
+      if (timestamp != null) {
+        media.dateTaken = timestamp;
+        media.dateTakenAccuracy = accuracy;
+        return media;
+      }
+    } catch (e) {
+      _errorService.logError(
+        message: 'JSON extraction (tryhard) failed: $e',
+        filePath: file.path,
+        severity: ErrorSeverity.info,
+        category: ErrorCategory.metadataExtraction,
+        exception: e as Exception?,
+      );
+    }
+    accuracy++;
+
+    // Method 5: File system date (fallback)
     try {
       final fileStat = await file.stat();
-
-      // Check if this file was recently modified (likely ZIP extraction)
       final daysSinceModified = DateTime.now().difference(fileStat.modified).inDays;
-
-      if (daysSinceModified < 30) { // Less than 30 days ago - likely extraction
-        // DON'T set dateTaken - let it go to date-unknown folder instead
+      if (daysSinceModified < 30) {
         _errorService.logError(
           message: 'File appears recently extracted, putting in date-unknown folder',
           filePath: file.path,
@@ -384,13 +404,10 @@ class ProcessingService {
         );
         return media; // Return with dateTaken = null
       }
-
-      // For older files, use creation time if available
       if (fileStat.changed.millisecondsSinceEpoch > 0) {
         media.dateTaken = fileStat.changed;
-        media.dateTakenAccuracy = 3; // Fallback
+        media.dateTakenAccuracy = accuracy;
       } else {
-        // File is old but no proper creation time - put in date-unknown
         return media; // Return with dateTaken = null
       }
     } catch (e) {
@@ -414,61 +431,72 @@ class ProcessingService {
     FilenameExtractor filenameExtractor,
   ) async {
     final media = Media.single(file);
+    DateTime? timestamp;
+    int accuracy = 0;
 
     // Method 1: JSON metadata (most accurate)
     try {
-      final jsonTimestamp = await jsonExtractor.extractTimestamp(file);
-      if (jsonTimestamp != null) {
-        media.dateTaken = jsonTimestamp;
-        media.dateTakenAccuracy = 0; // Most accurate
+      timestamp = await jsonExtractor.extractTimestamp(file);
+      if (timestamp != null) {
+        media.dateTaken = timestamp;
+        media.dateTakenAccuracy = accuracy;
         return media;
       }
     } catch (e) {
       // Log error would need error service passed in if needed
     }
+    accuracy++;
 
     // Method 2: EXIF data (medium accuracy)
     try {
-      final exifTimestamp = await exifExtractor.extractTimestamp(file);
-      if (exifTimestamp != null) {
-        media.dateTaken = exifTimestamp;
-        media.dateTakenAccuracy = 1; // Medium accuracy
+      timestamp = await exifExtractor.extractTimestamp(file);
+      if (timestamp != null) {
+        media.dateTaken = timestamp;
+        media.dateTakenAccuracy = accuracy;
         return media;
       }
     } catch (e) {
       // Log error would need error service passed in if needed
     }
+    accuracy++;
 
     // Method 3: Filename pattern (least accurate)
     try {
-      final filenameTimestamp = filenameExtractor.extractTimestamp(file);
-      if (filenameTimestamp != null) {
-        media.dateTaken = filenameTimestamp;
-        media.dateTakenAccuracy = 2; // Least accurate
+      timestamp = filenameExtractor.extractTimestamp(file);
+      if (timestamp != null) {
+        media.dateTaken = timestamp;
+        media.dateTakenAccuracy = accuracy;
         return media;
       }
     } catch (e) {
       // Log error would need error service passed in if needed
     }
+    accuracy++;
 
-    // Method 4: File system date (fallback) - MATCH EXAMPLE SCRIPT
+    // Method 4: JSON metadata with tryhard (more aggressive)
+    try {
+      timestamp = await jsonExtractor.extractTimestamp(file, tryhard: true);
+      if (timestamp != null) {
+        media.dateTaken = timestamp;
+        media.dateTakenAccuracy = accuracy;
+        return media;
+      }
+    } catch (e) {
+      // Log error would need error service passed in if needed
+    }
+    accuracy++;
+
+    // Method 5: File system date (fallback)
     try {
       final fileStat = await file.stat();
-
-      // Check if this file was recently modified (likely ZIP extraction)
       final daysSinceModified = DateTime.now().difference(fileStat.modified).inDays;
-
-      if (daysSinceModified < 30) { // Less than 30 days ago - likely extraction
-        // DON'T set dateTaken - let it go to date-unknown folder instead
+      if (daysSinceModified < 30) {
         return media; // Return with dateTaken = null
       }
-
-      // For older files, use creation time if available
       if (fileStat.changed.millisecondsSinceEpoch > 0) {
         media.dateTaken = fileStat.changed;
-        media.dateTakenAccuracy = 3; // Fallback
+        media.dateTakenAccuracy = accuracy;
       } else {
-        // File is old but no proper creation time - put in date-unknown
         return media; // Return with dateTaken = null
       }
     } catch (e) {
