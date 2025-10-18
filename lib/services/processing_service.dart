@@ -104,55 +104,6 @@ class ProcessingService {
     }
   }
 
-  /// Background processing function that runs in isolate
-  static Future<ProcessingResult> _processInBackground(Map<String, dynamic> params) async {
-    final config = params['config'] as ProcessingConfig;
-
-    // Create new service instances for the isolate (no Timer objects)
-    final fileService = FileService();
-    final duplicateService = DuplicateService();
-    final organizationService = FileOrganizationService();
-    final errorService = ErrorHandlingService(); // Create new instance without Timer
-    final jsonExtractor = JsonExtractor();
-    final exifExtractor = ExifExtractor();
-    final filenameExtractor = FilenameExtractor();
-
-    try {
-      // Phase 1: File Discovery with timeout and better error handling
-      final mediaFiles = await _discoverMediaFilesInIsolate(config, fileService, errorService)
-        .timeout(const Duration(minutes: 5), onTimeout: () {
-          throw TimeoutException('File discovery took too long');
-        });
-
-      // Phase 2: Timestamp Extraction
-      final mediaWithTimestamps = await _extractTimestampsInIsolate(
-        mediaFiles, jsonExtractor, exifExtractor, filenameExtractor, errorService
-      );
-
-      // Phase 3: Duplicate Detection and Merging
-      final uniqueMedia = await _processDuplicatesInIsolate(mediaWithTimestamps, duplicateService, errorService);
-
-      // Phase 4: File Organization
-      final organizationResult = await _organizeFilesInIsolate(
-        uniqueMedia, config, organizationService, errorService
-      );
-
-      return ProcessingResult.success(
-        totalFiles: mediaFiles.length,
-        processedFiles: mediaWithTimestamps.length,
-        uniqueFiles: uniqueMedia.length,
-        organizedFiles: organizationResult.successfulFiles,
-        errors: errorService.errors,
-        warnings: errorService.getErrorsBySeverity(ErrorSeverity.warning),
-      );
-
-    } catch (e) {
-      return ProcessingResult.failure(
-        error: e.toString(),
-        errors: errorService.errors,
-      );
-    }
-  }
 
   /// Phase 1: Discover all media files in the input directory
   Future<List<File>> _discoverMediaFiles() async {
@@ -183,58 +134,6 @@ class ProcessingService {
     }
   }
 
-  /// Phase 1: Discover all media files in the input directory (isolate version)
-  static Future<List<File>> _discoverMediaFilesInIsolate(
-    ProcessingConfig config,
-    FileService fileService,
-    ErrorHandlingService errorService,
-  ) async {
-    try {
-      // Use a more efficient approach for large directories
-      final mediaFiles = <File>[];
-
-      // Check if directory exists first
-      final directory = Directory(config.inputDirectory);
-      if (!await directory.exists()) {
-        throw Exception('Directory does not exist: ${config.inputDirectory}');
-      }
-
-      // Use a more controlled approach to avoid hanging
-      await for (final entity in directory.list(recursive: true)) {
-        if (entity is File) {
-          try {
-            // Check if it's a media file using the service method
-            if (fileService.isImageFile(entity) || fileService.isVideoFile(entity)) {
-              mediaFiles.add(entity);
-            }
-          } catch (e) {
-            // Skip files that can't be processed
-            continue;
-          }
-        }
-
-        // Prevent infinite loops by limiting file count (safety measure)
-        if (mediaFiles.length > 100000) {
-          break;
-        }
-      }
-
-      if (mediaFiles.isEmpty) {
-        throw Exception('No media files found in the specified directory');
-      }
-
-      return mediaFiles;
-    } catch (e) {
-      errorService.logError(
-        message: 'Failed to discover media files: $e',
-        filePath: config.inputDirectory,
-        severity: ErrorSeverity.error,
-        category: ErrorCategory.fileAccess,
-        exception: e as Exception?,
-      );
-      rethrow;
-    }
-  }
 
   /// Phase 2: Extract timestamps from all media files (simplified like original)
   Future<List<Media>> _extractTimestamps(List<File> files) async {
@@ -274,40 +173,6 @@ class ProcessingService {
     return mediaList;
   }
 
-  /// Phase 2: Extract timestamps from all media files (isolate version)
-  static Future<List<Media>> _extractTimestampsInIsolate(
-    List<File> files,
-    JsonExtractor jsonExtractor,
-    ExifExtractor exifExtractor,
-    FilenameExtractor filenameExtractor,
-    ErrorHandlingService errorService,
-  ) async {
-    final mediaList = <Media>[];
-
-    for (int i = 0; i < files.length; i++) {
-      final file = files[i];
-
-      try {
-        final media = await _extractTimestampForFileInIsolate(
-          file, jsonExtractor, exifExtractor, filenameExtractor
-        );
-
-        // Include ALL files in processing, even those without timestamps
-        // Files without timestamps will go to date-unknown folder during organization
-        mediaList.add(media);
-      } catch (e) {
-        errorService.logError(
-          message: 'Failed to process file: $e',
-          filePath: file.path,
-          severity: ErrorSeverity.error,
-          category: ErrorCategory.processing,
-          exception: e as Exception?,
-        );
-      }
-    }
-
-    return mediaList;
-  }
 
   /// Extract timestamp for a single file using multiple methods
   Future<Media> _extractTimestampForFile(File file) async {
@@ -423,88 +288,6 @@ class ProcessingService {
     return media;
   }
 
-  /// Extract timestamp for a single file using multiple methods (isolate version)
-  static Future<Media> _extractTimestampForFileInIsolate(
-    File file,
-    JsonExtractor jsonExtractor,
-    ExifExtractor exifExtractor,
-    FilenameExtractor filenameExtractor,
-  ) async {
-    final media = Media.single(file);
-    DateTime? timestamp;
-    int accuracy = 0;
-
-    // Method 1: JSON metadata (most accurate)
-    try {
-      timestamp = await jsonExtractor.extractTimestamp(file);
-      if (timestamp != null) {
-        media.dateTaken = timestamp;
-        media.dateTakenAccuracy = accuracy;
-        return media;
-      }
-    } catch (e) {
-      // Log error would need error service passed in if needed
-    }
-    accuracy++;
-
-    // Method 2: EXIF data (medium accuracy)
-    try {
-      timestamp = await exifExtractor.extractTimestamp(file);
-      if (timestamp != null) {
-        media.dateTaken = timestamp;
-        media.dateTakenAccuracy = accuracy;
-        return media;
-      }
-    } catch (e) {
-      // Log error would need error service passed in if needed
-    }
-    accuracy++;
-
-    // Method 3: Filename pattern (least accurate)
-    try {
-      timestamp = filenameExtractor.extractTimestamp(file);
-      if (timestamp != null) {
-        media.dateTaken = timestamp;
-        media.dateTakenAccuracy = accuracy;
-        return media;
-      }
-    } catch (e) {
-      // Log error would need error service passed in if needed
-    }
-    accuracy++;
-
-    // Method 4: JSON metadata with tryhard (more aggressive)
-    try {
-      timestamp = await jsonExtractor.extractTimestamp(file, tryhard: true);
-      if (timestamp != null) {
-        media.dateTaken = timestamp;
-        media.dateTakenAccuracy = accuracy;
-        return media;
-      }
-    } catch (e) {
-      // Log error would need error service passed in if needed
-    }
-    accuracy++;
-
-    // Method 5: File system date (fallback)
-    try {
-      final fileStat = await file.stat();
-      final daysSinceModified = DateTime.now().difference(fileStat.modified).inDays;
-      if (daysSinceModified < 30) {
-        return media; // Return with dateTaken = null
-      }
-      if (fileStat.changed.millisecondsSinceEpoch > 0) {
-        media.dateTaken = fileStat.changed;
-        media.dateTakenAccuracy = accuracy;
-      } else {
-        return media; // Return with dateTaken = null
-      }
-    } catch (e) {
-      // Log error would need error service passed in if needed
-    }
-
-    return media;
-  }
 
   /// Phase 3: Process duplicates and merge them
   Future<List<Media>> _processDuplicates(List<Media> mediaList) async {
@@ -535,11 +318,8 @@ class ProcessingService {
         },
       );
 
-      // Add any media that couldn't be hashed (treat as unique)
-      final unhashableMedia = mediaList.where((media) => media.hash == null).toList();
-      mergedMedia.addAll(unhashableMedia);
-
-      _progressService.updateProgress(80, statusMessage: 'Duplicate detection complete, ${mergedMedia.length} unique files');
+      // Since the new hashing groups unique files, we just need to merge the groups
+      _progressService.updateProgress(80, statusMessage: 'Duplicate detection complete, ${hashGroups.length} groups found');
 
       return mergedMedia;
     } catch (e) {
@@ -554,35 +334,6 @@ class ProcessingService {
     }
   }
 
-  /// Phase 3: Process duplicates and merge them (isolate version)
-  static Future<List<Media>> _processDuplicatesInIsolate(
-    List<Media> mediaList,
-    DuplicateService duplicateService,
-    ErrorHandlingService errorService,
-  ) async {
-    try {
-      // Group media by hash to find duplicates
-      final hashGroups = await duplicateService.groupMediaByHash(mediaList);
-
-      // Merge duplicate groups
-      final mergedMedia = duplicateService.mergeDuplicates(hashGroups);
-
-      // Add any media that couldn't be hashed (treat as unique)
-      final unhashableMedia = mediaList.where((media) => media.hash == null).toList();
-      mergedMedia.addAll(unhashableMedia);
-
-      return mergedMedia;
-    } catch (e) {
-      errorService.logError(
-        message: 'Duplicate processing failed: $e',
-        filePath: 'batch_operation',
-        severity: ErrorSeverity.error,
-        category: ErrorCategory.processing,
-        exception: e as Exception?,
-      );
-      return mediaList; // Return original list if duplicate processing fails
-    }
-  }
 
   /// Phase 4: Organize files into the target structure
   Future<OrganizationResult> _organizeFiles(List<Media> mediaList) async {
@@ -614,31 +365,6 @@ class ProcessingService {
     }
   }
 
-  /// Phase 4: Organize files into the target structure (isolate version)
-  static Future<OrganizationResult> _organizeFilesInIsolate(
-    List<Media> mediaList,
-    ProcessingConfig config,
-    FileOrganizationService organizationService,
-    ErrorHandlingService errorService,
-  ) async {
-    try {
-      return await organizationService.organizeFiles(
-        mediaList,
-        config.outputDirectory,
-        config.organizationMode,
-        preserveOriginalFilename: config.preserveOriginalFilename,
-      );
-    } catch (e) {
-      errorService.logError(
-        message: 'File organization failed: $e',
-        filePath: config.outputDirectory,
-        severity: ErrorSeverity.error,
-        category: ErrorCategory.processing,
-        exception: e as Exception?,
-      );
-      rethrow;
-    }
-  }
 
   /// Cancel the current processing operation
   void cancelProcessing() {
@@ -663,7 +389,6 @@ class ProcessingService {
   void reset() {
     _progressService.reset();
     _errorService.clearErrors();
-    _duplicateService.clearCaches();
   }
 }
 

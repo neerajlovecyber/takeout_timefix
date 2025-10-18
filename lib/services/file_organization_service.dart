@@ -50,9 +50,6 @@ class FileOrganizationService {
           errors.add('Failed to organize ${media.primaryFile?.path}: $e');
         }
       }
-
-      // Yield control to allow UI updates during processing
-      await Future.delayed(const Duration(milliseconds: 1));
     }
 
     return OrganizationResult(
@@ -61,54 +58,6 @@ class FileOrganizationService {
       totalFiles: mediaList.length,
       successfulFiles: organizedFiles.length,
       failedFiles: errors.length,
-    );
-  }
-
-  /// Organize a single media file (synchronous for performance)
-  OrganizedFile _organizeSingleMedia(
-    Media media,
-    String outputDirectory,
-    OrganizationMode mode, {
-    bool preserveOriginalFilename = false,
-    String? customDateFormat,
-  }) {
-    final sourceFile = media.primaryFile;
-    if (sourceFile == null) {
-      throw Exception('No primary file found for media');
-    }
-
-    // Determine target path based on organization mode (synchronous for performance)
-    final targetPath = _getTargetPath(
-      media,
-      outputDirectory,
-      mode,
-      preserveOriginalFilename: preserveOriginalFilename,
-      customDateFormat: customDateFormat,
-    );
-
-    // Ensure target directory exists
-    final targetDir = path.dirname(targetPath);
-    _ensureDirectoryExists(targetDir);
-
-    // Copy or move file to target location (synchronous for performance)
-    final targetFile = _copyFileToTarget(sourceFile, targetPath);
-
-    // Preserve ORIGINAL timestamp from Media object (matches example script approach)
-    if (media.dateTaken != null) {
-      try {
-        targetFile.setLastModifiedSync(media.dateTaken!);
-      } catch (e) {
-        // Handle cases where timestamp setting fails (matches example script error handling)
-        print("WARNING: Can't set modification time on $targetFile: $e");
-      }
-    }
-
-    return OrganizedFile(
-      sourceFile: sourceFile,
-      targetFile: targetFile,
-      organizationMode: mode,
-      dateTaken: media.dateTaken,
-      dateAccuracy: media.dateTakenAccuracy,
     );
   }
 
@@ -139,7 +88,7 @@ class FileOrganizationService {
     await _ensureDirectoryExistsAsync(targetDir);
 
     // Copy or move file to target location (async)
-    final targetFile = await _copyFileToTargetAsync(sourceFile, targetPath);
+    final targetFile = await _moveFileToTarget(sourceFile, targetPath);
 
     // Preserve ORIGINAL timestamp from Media object (matches example script approach)
     if (media.dateTaken != null) {
@@ -240,79 +189,29 @@ class FileOrganizationService {
     }
   }
 
-  /// Copy file to target location with conflict resolution (synchronous for performance)
-  File _copyFileToTarget(File sourceFile, String targetPath) {
-    var finalTargetPath = targetPath;
-    final targetFile = File(targetPath);
-  
-    // Handle filename conflicts (synchronous for performance)
-    if (targetFile.existsSync()) {
-      finalTargetPath = _resolveFilenameConflictSync(targetPath);
-    }
-  
-    // Copy the file (synchronous for performance)
-    sourceFile.copySync(finalTargetPath);
-  
-    return File(finalTargetPath);
-  }
+  /// Move file to target location with conflict resolution
+  Future<File> _moveFileToTarget(File sourceFile, String targetPath) async {
+    final targetFile = _findNotExistingName(File(targetPath));
 
-  /// Copy file to target location with conflict resolution (async version)
-  Future<File> _copyFileToTargetAsync(File sourceFile, String targetPath) async {
-    var finalTargetPath = targetPath;
-    final targetFile = File(targetPath);
-  
-    // Handle filename conflicts (async)
-    if (await targetFile.exists()) {
-      finalTargetPath = await _resolveFilenameConflictAsync(targetPath);
-    }
-  
-    // Copy the file (async)
-    await sourceFile.copy(finalTargetPath);
-  
-    return File(finalTargetPath);
-  }
-
-  /// Resolve filename conflicts by adding a suffix (synchronous for performance)
-  String _resolveFilenameConflictSync(String targetPath) {
-    final directory = path.dirname(targetPath);
-    final filename = path.basenameWithoutExtension(targetPath);
-    final extension = path.extension(targetPath);
-
-    int counter = 1;
-    String newPath;
-
-    do {
-      newPath = path.join(directory, '$filename($counter)$extension');
-      counter++;
-    } while (File(newPath).existsSync());
-
-    return newPath;
-  }
-
-  /// Resolve filename conflicts by adding a suffix (async version)
-  Future<String> _resolveFilenameConflictAsync(String targetPath) async {
-    final directory = path.dirname(targetPath);
-    final filename = path.basenameWithoutExtension(targetPath);
-    final extension = path.extension(targetPath);
-
-    int counter = 1;
-    String newPath;
-
-    do {
-      newPath = path.join(directory, '$filename($counter)$extension');
-      counter++;
-    } while (await File(newPath).exists());
-
-    return newPath;
-  }
-
-  /// Ensure directory exists, creating it if necessary (synchronous for performance)
-  void _ensureDirectoryExists(String directoryPath) {
-    final directory = Directory(directoryPath);
-    if (!directory.existsSync()) {
-      directory.createSync(recursive: true);
+    try {
+      return await sourceFile.rename(targetFile.path);
+    } on FileSystemException {
+      // If rename fails (e.g., different drives), fall back to copy
+      return await sourceFile.copy(targetFile.path);
     }
   }
+
+  /// This will add (1) add end of file name over and over until file with such
+  /// name doesn't exist yet. Will leave without "(1)" if is free already
+  File _findNotExistingName(File initialFile) {
+    var file = initialFile;
+    while (file.existsSync()) {
+      file = File(
+          '${path.withoutExtension(file.path)}(1)${path.extension(file.path)}');
+    }
+    return file;
+  }
+
 
   /// Ensure directory exists, creating it if necessary (async version)
   Future<void> _ensureDirectoryExistsAsync(String directoryPath) async {
