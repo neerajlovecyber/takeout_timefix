@@ -62,7 +62,11 @@ class DuplicateService {
         continue;
       }
 
-      // Start with the first media file
+      // Sort the duplicates to ensure the one with the best timestamp is first
+      duplicateList.sort((a, b) =>
+          (a.dateTakenAccuracy ?? 999).compareTo(b.dateTakenAccuracy ?? 999));
+
+      // Start with the first media file, which is now the best one
       final primaryMedia = duplicateList.first;
       final mergedFiles = <String?, File>{};
 

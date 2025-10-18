@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 import '../models/media.dart';
+import 'package:crypto/crypto.dart';
+import 'package:path/path.dart' as path;
 import 'file_service.dart';
 import 'duplicate_service.dart';
 import 'file_organization_service.dart';
@@ -12,15 +14,25 @@ import 'timestamp_extractors/filename_extractor.dart';
 
 /// Main service that coordinates the entire image processing pipeline
 class ProcessingService {
-  final FileService _fileService = FileService();
-  final DuplicateService _duplicateService = DuplicateService();
-  final FileOrganizationService _organizationService = FileOrganizationService();
-  final ProgressService _progressService = ProgressService();
-  final ErrorHandlingService _errorService = ErrorHandlingService();
+  final FileService _fileService;
+  final DuplicateService _duplicateService;
+  final FileOrganizationService _organizationService;
+  final ProgressService _progressService;
+  final ErrorHandlingService _errorService;
 
-  final JsonExtractor _jsonExtractor = JsonExtractor();
-  final ExifExtractor _exifExtractor = ExifExtractor();
-  final FilenameExtractor _filenameExtractor = FilenameExtractor();
+  final JsonExtractor _jsonExtractor;
+  final ExifExtractor _exifExtractor;
+  final FilenameExtractor _filenameExtractor;
+
+  ProcessingService()
+      : _fileService = FileService(),
+        _duplicateService = DuplicateService(),
+        _organizationService = FileOrganizationService(),
+        _progressService = ProgressService(),
+        _errorService = ErrorHandlingService(),
+        _jsonExtractor = JsonExtractor(),
+        _exifExtractor = ExifExtractor(),
+        _filenameExtractor = FilenameExtractor(ErrorHandlingService());
 
   /// Processing configuration
   late ProcessingConfig _config;
@@ -85,6 +97,10 @@ class ProcessingService {
      _progressService.updateProgress(83, statusMessage: 'Organizing files...');
      final organizationResult = await _organizeFiles(uniqueMedia);
      _progressService.updateProgress(100, statusMessage: 'Organized ${organizationResult.successfulFiles} files successfully');
+
+     // After processing is complete, export the log
+     final logFilePath = path.join(config.outputDirectory, 'takeout_timefix_log.txt');
+     await _errorService.exportErrorLog(logFilePath);
 
       return ProcessingResult.success(
         totalFiles: mediaFiles.length,
@@ -152,6 +168,16 @@ class ProcessingService {
         // Include ALL files in processing, even those without timestamps
         // Files without timestamps will go to date-unknown folder during organization
         mediaList.add(media);
+
+        // If, after all attempts, the date is still null, log it for debugging.
+        if (media.dateTaken == null) {
+          _errorService.logError(
+            message: 'Could not determine timestamp for file after trying all methods.',
+            filePath: file.path,
+            severity: ErrorSeverity.info,
+            category: ErrorCategory.metadataExtraction,
+          );
+        }
       } catch (e) {
         _errorService.logError(
           message: 'Failed to process file: $e',
@@ -180,111 +206,43 @@ class ProcessingService {
     DateTime? timestamp;
     int accuracy = 0;
 
-    // Method 1: JSON metadata (most accurate)
-    try {
-      timestamp = await _jsonExtractor.extractTimestamp(file);
-      if (timestamp != null) {
-        media.dateTaken = timestamp;
-        media.dateTakenAccuracy = accuracy;
-        return media;
-      }
-    } catch (e) {
-      _errorService.logError(
-        message: 'JSON extraction failed: $e',
-        filePath: file.path,
-        severity: ErrorSeverity.info,
-        category: ErrorCategory.metadataExtraction,
-        exception: e as Exception?,
-      );
-    }
-    accuracy++;
+    // Create a list of extraction methods to try in order
+    final List<Future<DateTime?> Function()> extractors = [
+      () => _jsonExtractor.extractTimestamp(file),
+      () => _exifExtractor.extractTimestamp(file),
+      () async => _filenameExtractor.extractTimestamp(file),
+      () => _jsonExtractor.extractTimestamp(file, tryhard: true),
+      () async { // Filesystem as a final fallback
+        final fileStat = await file.stat();
+        if (DateTime.now().difference(fileStat.modified).inDays < 30) {
+          return null;
+        }
+        return fileStat.changed.millisecondsSinceEpoch > 0 ? fileStat.changed : null;
+      },
+    ];
 
-    // Method 2: EXIF data (medium accuracy)
-    try {
-      timestamp = await _exifExtractor.extractTimestamp(file);
-      if (timestamp != null) {
-        media.dateTaken = timestamp;
-        media.dateTakenAccuracy = accuracy;
-        return media;
-      }
-    } catch (e) {
-      _errorService.logError(
-        message: 'EXIF extraction failed: $e',
-        filePath: file.path,
-        severity: ErrorSeverity.info,
-        category: ErrorCategory.metadataExtraction,
-        exception: e as Exception?,
-      );
-    }
-    accuracy++;
-
-    // Method 3: Filename pattern (least accurate)
-    try {
-      timestamp = _filenameExtractor.extractTimestamp(file);
-      if (timestamp != null) {
-        media.dateTaken = timestamp;
-        media.dateTakenAccuracy = accuracy;
-        return media;
-      }
-    } catch (e) {
-      _errorService.logError(
-        message: 'Filename extraction failed: $e',
-        filePath: file.path,
-        severity: ErrorSeverity.info,
-        category: ErrorCategory.metadataExtraction,
-        exception: e as Exception?,
-      );
-    }
-    accuracy++;
-
-    // Method 4: JSON metadata with tryhard (more aggressive)
-    try {
-      timestamp = await _jsonExtractor.extractTimestamp(file, tryhard: true);
-      if (timestamp != null) {
-        media.dateTaken = timestamp;
-        media.dateTakenAccuracy = accuracy;
-        return media;
-      }
-    } catch (e) {
-      _errorService.logError(
-        message: 'JSON extraction (tryhard) failed: $e',
-        filePath: file.path,
-        severity: ErrorSeverity.info,
-        category: ErrorCategory.metadataExtraction,
-        exception: e as Exception?,
-      );
-    }
-    accuracy++;
-
-    // Method 5: File system date (fallback)
-    try {
-      final fileStat = await file.stat();
-      final daysSinceModified = DateTime.now().difference(fileStat.modified).inDays;
-      if (daysSinceModified < 30) {
+    for (final extractor in extractors) {
+      try {
+        timestamp = await extractor();
+        if (timestamp != null) {
+          media.dateTaken = timestamp;
+          media.dateTakenAccuracy = accuracy;
+          return media; // Found a timestamp, so we can stop
+        }
+      } catch (e) {
+        // Log the error but continue to the next extractor
         _errorService.logError(
-          message: 'File appears recently extracted, putting in date-unknown folder',
+          message: 'Timestamp extraction failed for method $accuracy: $e',
           filePath: file.path,
           severity: ErrorSeverity.info,
           category: ErrorCategory.metadataExtraction,
+          exception: e is Exception ? e : Exception(e.toString()),
         );
-        return media; // Return with dateTaken = null
       }
-      if (fileStat.changed.millisecondsSinceEpoch > 0) {
-        media.dateTaken = fileStat.changed;
-        media.dateTakenAccuracy = accuracy;
-      } else {
-        return media; // Return with dateTaken = null
-      }
-    } catch (e) {
-      _errorService.logError(
-        message: 'File system date extraction failed: $e',
-        filePath: file.path,
-        severity: ErrorSeverity.info,
-        category: ErrorCategory.metadataExtraction,
-        exception: e as Exception?,
-      );
+      accuracy++;
     }
 
+    // If no extractor found a date, return the media object without a date
     return media;
   }
 
@@ -308,20 +266,25 @@ class ProcessingService {
 
       _progressService.updateProgress(65, statusMessage: 'Merging duplicate groups...');
 
-      // Merge duplicate groups with progress updates
-      final mergedMedia = await _duplicateService.mergeDuplicatesWithProgress(
+      // Separate the files that received a dummy hash because they were too large.
+      // These should not be merged.
+      final dummyHashKey = Digest([0]).toString();
+      final largeFiles = hashGroups.remove(dummyHashKey) ?? [];
+
+      // Merge the actual duplicates and then add the large files back in as unique items.
+      final mergedDuplicates = await _duplicateService.mergeDuplicatesWithProgress(
         hashGroups,
         (progress, status) {
-          // Update progress during merging (65-75% range)
-          final progressValue = 65 + (progress * 10); // Spread over 10% range
+          final progressValue = 65 + (progress * 15); // 65-80% range
           _progressService.updateProgress(progressValue.round(), statusMessage: status);
         },
       );
 
-      // Since the new hashing groups unique files, we just need to merge the groups
-      _progressService.updateProgress(80, statusMessage: 'Duplicate detection complete, ${hashGroups.length} groups found');
+      final uniqueMedia = mergedDuplicates + largeFiles;
 
-      return mergedMedia;
+      _progressService.updateProgress(80, statusMessage: 'Processed duplicates, ${uniqueMedia.length} unique files remaining');
+
+      return uniqueMedia;
     } catch (e) {
       _errorService.logError(
         message: 'Duplicate processing failed: $e',

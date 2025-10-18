@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import '../error_handling_service.dart';
 import 'package:path/path.dart' as p;
 
 // These are thanks to @hheimbuerger <3
@@ -10,18 +11,12 @@ final _commonDatetimePatterns = [
         r'(?<date>(20|19|18)\\d{2}(01|02|03|04|05|06|07|08|09|10|11|12)[0-3]\\d-\\d{6})'),
     'YYYYMMDD-hhmmss'
   ],
-  // example: IMG_20190509_154733-edited.jpg, MVIMG_20190215_193501.MP4, IMG_20190221_112112042_BURST000_COVER_TOP.MP4
+  // example: IMG_20190509_154733.jpg, VID_20221024_225432_HSR_120.mp4, etc.
   [
     RegExp(
-        r'(?<date>(20|19|18)\\d{2}(01|02|03|04|05|06|07|08|09|10|11|12)[0-3]\\d_\\d{6})'),
+        r'(?<date>(?:20|19|18)\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])(?:_|-)\d{6})'),
     'YYYYMMDD_hhmmss',
   ],
-  // example: IMG_20221026_213413_866_no_date.jpg
-[
-  RegExp(
-      r'\b(?<date>(?:20|19|18)\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])_(?:[01]\d|2[0-3])[0-5]\d[0-5]\d)\b'),
-  'YYYYMMDD_hhmmss',
-],
   // example: Screenshot_2019-04-16-11-19-37-232_com.google.a.jpg
   [
     RegExp(
@@ -51,17 +46,31 @@ final _commonDatetimePatterns = [
 ];
 
 class FilenameExtractor {
+  final ErrorHandlingService? _errorService;
+
+  FilenameExtractor([this._errorService]);
+
   DateTime? extractTimestamp(File file) {
+    final filename = p.basename(file.path);
     for (final pat in _commonDatetimePatterns) {
-      // extract date str with regex
-      final match = (pat.first as RegExp).firstMatch(p.basename(file.path));
+      final regex = pat.first as RegExp;
+      final match = regex.firstMatch(filename);
       final dateStr = match?.group(0);
+
+      _errorService?.logError(
+        message: 'Attempting regex: ${regex.pattern} on filename: $filename',
+        filePath: file.path,
+        severity: ErrorSeverity.info,
+        category: ErrorCategory.metadataExtraction,
+        context: {'match': dateStr},
+      );
+
       if (dateStr == null) continue;
-      // parse it with given pattern
+
       DateTime? date;
       try {
-        date = FixedDateTimeFormatter(pat.last as String, isUtc: false)
-            .tryDecode(dateStr);
+        date = FixedDateTimeFormatter(pat.last as String, isUtc: false, errorService: _errorService)
+            .tryDecode(dateStr, file.path);
       } on RangeError catch (_) {}
       if (date == null) continue;
       return date; // success!
@@ -73,20 +82,38 @@ class FilenameExtractor {
 class FixedDateTimeFormatter {
   final String format;
   final bool isUtc;
+  final ErrorHandlingService? errorService;
 
-  const FixedDateTimeFormatter(this.format, {this.isUtc = false});
+  const FixedDateTimeFormatter(this.format, {this.isUtc = false, this.errorService});
 
-  DateTime? tryDecode(String dateStr) {
+  DateTime? tryDecode(String dateStr, String filePath) {
     try {
       String sanitized = dateStr.replaceAll('-', '').replaceAll('_', '').replaceAll(':', '');
-      if (sanitized.length < 14) return null;
+      errorService?.logError(
+        message: 'Sanitizing date string. Original: "$dateStr", Sanitized: "$sanitized"',
+        filePath: filePath,
+        severity: ErrorSeverity.info,
+        category: ErrorCategory.metadataExtraction,
+      );
+
+      if (sanitized.length < 8) {
+        errorService?.logError(
+          message: 'Sanitized string length is less than 8. Cannot parse date.',
+          filePath: filePath,
+          severity: ErrorSeverity.info,
+          category: ErrorCategory.metadataExtraction,
+        );
+        return null;
+      }
 
       final year = int.parse(sanitized.substring(0, 4));
       final month = int.parse(sanitized.substring(4, 6));
       final day = int.parse(sanitized.substring(6, 8));
-      final hour = int.parse(sanitized.substring(8, 10));
-      final minute = int.parse(sanitized.substring(10, 12));
-      final second = int.parse(sanitized.substring(12, 14));
+
+      // Default time to midnight if not present
+      final hour = sanitized.length >= 10 ? int.parse(sanitized.substring(8, 10)) : 0;
+      final minute = sanitized.length >= 12 ? int.parse(sanitized.substring(10, 12)) : 0;
+      final second = sanitized.length >= 14 ? int.parse(sanitized.substring(12, 14)) : 0;
 
       if (isUtc) {
         return DateTime.utc(year, month, day, hour, minute, second);

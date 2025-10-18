@@ -211,27 +211,32 @@ class ErrorHandlingService {
   /// Export errors to a log file
   Future<String> exportErrorLog(String outputPath) async {
     final buffer = StringBuffer();
-    buffer.writeln('Takeout TimeFix Error Log');
-    buffer.writeln('Generated: ${DateTime.now().toIso8601String()}');
-    buffer.writeln('Total Errors: ${_errorLog.length}');
-    buffer.writeln('');
+    buffer.writeln('Takeout TimeFix - Processing Log');
+    buffer.writeln('Log generated at: ${DateTime.now().toIso8601String()}');
+    buffer.writeln('Total entries: ${_errorLog.length}');
+    buffer.writeln('----------------------------------------\n');
 
-    for (final error in _errorLog) {
-      buffer.writeln('=== ${error.severity.name.toUpperCase()} ===');
-      buffer.writeln('Time: ${error.timestamp.toIso8601String()}');
-      buffer.writeln('File: ${error.filePath}');
-      buffer.writeln('Category: ${error.category.name}');
-      buffer.writeln('Message: ${error.message}');
+    if (_errorLog.isEmpty) {
+      buffer.writeln('No issues to report. All files processed successfully.');
+    } else {
+      // Sort logs by timestamp
+      _errorLog.sort((a, b) => a.timestamp.compareTo(b.timestamp));
 
-      if (error.exception != null) {
-        buffer.writeln('Exception: ${error.exception}');
+      for (final entry in _errorLog) {
+        buffer.writeln('[${entry.severity.name.toUpperCase()}] - ${entry.timestamp.toIso8601String()}');
+        buffer.writeln('  File: ${entry.filePath}');
+        buffer.writeln('  Message: ${entry.message}');
+        if (entry.category != ErrorCategory.unknown) {
+          buffer.writeln('  Category: ${entry.category.name}');
+        }
+        if (entry.exception != null) {
+          buffer.writeln('  Exception: ${entry.exception}');
+        }
+        if (entry.context.isNotEmpty) {
+          buffer.writeln('  Context: ${entry.context}');
+        }
+        buffer.writeln(''); // Add a blank line for readability
       }
-
-      if (error.context.isNotEmpty) {
-        buffer.writeln('Context: ${error.context}');
-      }
-
-      buffer.writeln('');
     }
 
     final logFile = File(outputPath);
