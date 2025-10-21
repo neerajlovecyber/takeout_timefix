@@ -2,6 +2,7 @@ name: Build and Release
 
 on:
   push:
+    branches: [ main ]
     tags:
       - 'v*.*.*'
   workflow_dispatch:
@@ -174,7 +175,7 @@ jobs:
   create-release:
     needs: [build-windows, build-android, build-macos, build-linux, build-web]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' || (github.ref == 'refs/heads/main' && github.event_name == 'push')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -187,6 +188,8 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            echo "VERSION=dev-$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
           else
             echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
           fi
@@ -198,6 +201,8 @@ jobs:
           name: Takeout TimeFix ${{ steps.version.outputs.VERSION }}
           body: |
             ## 🚀 Takeout TimeFix ${{ steps.version.outputs.VERSION }}
+
+            ${{ startsWith(steps.version.outputs.VERSION, 'dev-') && '⚠️ **Development Build** - This is an automated build from the latest main branch commit.' || '📦 **Release Build** - Official release with all platforms supported.' }}
 
             ### 📱 Downloads
 
@@ -244,7 +249,7 @@ jobs:
             ### 🐛 Bug Reports
             Please report issues on our [GitHub Issues](https://github.com/your-username/takeout-timefix/issues) page.
           draft: false
-          prerelease: false
+          prerelease: ${{ startsWith(steps.version.outputs.VERSION, 'dev-') }}
           files: |
             ./windows-release/takeout-timefix-windows-x64.zip
             ./android-apk/app-release.apk
