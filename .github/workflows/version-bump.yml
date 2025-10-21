@@ -1,0 +1,146 @@
+name: Version Bump
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_type:
+        description: 'Version bump type'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+      custom_version:
+        description: 'Custom version (optional, overrides version_type)'
+        required: false
+        type: string
+
+jobs:
+  bump-version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install semver
+        run: npm install -g semver
+
+      - name: Get current version
+        id: current_version
+        run: |
+          CURRENT=$(grep "version:" pubspec.yaml | sed 's/version: //' | sed 's/+.*//')
+          echo "CURRENT_VERSION=$CURRENT" >> $GITHUB_OUTPUT
+          echo "Current version: $CURRENT"
+
+      - name: Calculate new version
+        id: new_version
+        run: |
+          CURRENT="${{ steps.current_version.outputs.CURRENT_VERSION }}"
+          
+          if [ -n "${{ github.event.inputs.custom_version }}" ]; then
+            NEW_VERSION="${{ github.event.inputs.custom_version }}"
+          else
+            NEW_VERSION=$(semver -i ${{ github.event.inputs.version_type }} $CURRENT)
+          fi
+          
+          echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "New version: $NEW_VERSION"
+
+      - name: Update pubspec.yaml
+        run: |
+          NEW_VERSION="${{ steps.new_version.outputs.NEW_VERSION }}"
+          BUILD_NUMBER=$(date +%s)
+          
+          # Update version in pubspec.yaml
+          sed -i "s/version: .*/version: $NEW_VERSION+$BUILD_NUMBER/" pubspec.yaml
+          
+          echo "Updated pubspec.yaml with version: $NEW_VERSION+$BUILD_NUMBER"
+
+      - name: Generate changelog entry
+        id: changelog
+        run: |
+          NEW_VERSION="${{ steps.new_version.outputs.NEW_VERSION }}"
+          DATE=$(date +"%Y-%m-%d")
+          
+          # Create changelog entry
+          CHANGELOG_ENTRY="## [$NEW_VERSION] - $DATE
+
+### Added
+- New features and improvements
+
+### Changed
+- Updated dependencies and performance improvements
+
+### Fixed
+- Bug fixes and stability improvements
+
+"
+          
+          # Prepend to CHANGELOG.md if it exists, otherwise create it
+          if [ -f CHANGELOG.md ]; then
+            echo "$CHANGELOG_ENTRY" | cat - CHANGELOG.md > temp && mv temp CHANGELOG.md
+          else
+            echo "# Changelog
+
+All notable changes to this project will be documented in this file.
+
+$CHANGELOG_ENTRY" > CHANGELOG.md
+          fi
+          
+          echo "Generated changelog entry for version $NEW_VERSION"
+
+      - name: Commit changes
+        run: |
+          NEW_VERSION="${{ steps.new_version.outputs.NEW_VERSION }}"
+          
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          
+          git add pubspec.yaml CHANGELOG.md
+          git commit -m "chore: bump version to $NEW_VERSION"
+          git push
+
+      - name: Create and push tag
+        run: |
+          NEW_VERSION="${{ steps.new_version.outputs.NEW_VERSION }}"
+          
+          git tag "v$NEW_VERSION"
+          git push origin "v$NEW_VERSION"
+          
+          echo "Created and pushed tag: v$NEW_VERSION"
+
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ steps.new_version.outputs.NEW_VERSION }}
+          release_name: Release v${{ steps.new_version.outputs.NEW_VERSION }}
+          body: |
+            ## 🚀 Release v${{ steps.new_version.outputs.NEW_VERSION }}
+            
+            This release was automatically created by the version bump workflow.
+            
+            ### 📦 Downloads
+            
+            The build artifacts will be available shortly after the release workflow completes.
+            
+            ### 📝 Changes
+            
+            See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for detailed changes.
+            
+            ### 🔧 Installation
+            
+            Download the appropriate package for your platform from the assets below.
+          draft: false
+          prerelease: false

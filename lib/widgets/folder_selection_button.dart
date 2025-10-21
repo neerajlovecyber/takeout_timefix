@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../utils/app_constants.dart';
 
 class FolderSelectionButton extends StatelessWidget {
   final VoidCallback onPressed;
@@ -15,16 +14,27 @@ class FolderSelectionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ElevatedButton.icon(
-      onPressed: onPressed,
-      icon: Icon(icon),
-      label: Text(label),
-      style: ElevatedButton.styleFrom(
-        padding: const EdgeInsets.symmetric(
-          vertical: AppConstants.buttonPadding,
-          horizontal: AppConstants.buttonPadding,
+    return SizedBox(
+      width: double.infinity,
+      child: FilledButton.tonalIcon(
+        onPressed: onPressed,
+        icon: Icon(icon, size: 20),
+        label: Text(
+          label,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
         ),
-        textStyle: const TextStyle(fontSize: AppConstants.buttonFontSize),
+        style: FilledButton.styleFrom(
+          padding: const EdgeInsets.symmetric(
+            vertical: 20,
+            horizontal: 24,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
       ),
     );
   }

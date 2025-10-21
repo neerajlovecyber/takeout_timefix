@@ -9,12 +9,37 @@ class UIHelpers {
     String message, {
     Color? backgroundColor,
     Duration? duration,
+    IconData? icon,
   }) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message),
-        backgroundColor: backgroundColor ?? AppColors.info,
+        content: Row(
+          children: [
+            if (icon != null) ...[
+              Icon(
+                icon,
+                color: Theme.of(context).colorScheme.onInverseSurface,
+                size: 20,
+              ),
+              const SizedBox(width: 12),
+            ],
+            Expanded(
+              child: Text(
+                message,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onInverseSurface,
+                ),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: backgroundColor ?? Theme.of(context).colorScheme.inverseSurface,
         duration: duration ?? AppConstants.snackBarDuration,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        margin: const EdgeInsets.all(16),
       ),
     );
   }
@@ -23,7 +48,8 @@ class UIHelpers {
     showSnackBar(
       context,
       message,
-      backgroundColor: AppColors.success,
+      backgroundColor: Theme.of(context).colorScheme.primary,
+      icon: Icons.check_circle,
     );
   }
 
@@ -31,17 +57,23 @@ class UIHelpers {
     showSnackBar(
       context,
       message,
-      backgroundColor: AppColors.warning,
+      backgroundColor: Theme.of(context).colorScheme.tertiary,
       duration: AppConstants.shortSnackBarDuration,
+      icon: Icons.warning,
     );
   }
 
   static void showErrorSnackBar(BuildContext context, String message) {
+    final truncatedMessage = message.length > 100 
+      ? '${message.substring(0, min(100, message.length))}...' 
+      : message;
+    
     showSnackBar(
       context,
-      message.length > 100 ? '${message.substring(0, min(100, message.length))}...' : message,
-      backgroundColor: AppColors.error,
+      truncatedMessage,
+      backgroundColor: Theme.of(context).colorScheme.error,
       duration: AppConstants.snackBarDuration,
+      icon: Icons.error,
     );
   }
 

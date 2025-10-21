@@ -4,7 +4,6 @@ import 'dart:math';
 import 'package:rxdart/rxdart.dart';
 import '../services/processing_service.dart';
 import '../services/file_organization_service.dart';
-import '../utils/app_constants.dart';
 
 /// Widget that displays processing progress and controls
 class ProcessingProgressCard extends StatefulWidget {
@@ -168,24 +167,50 @@ class _ProcessingProgressCardState extends State<ProcessingProgressCard>
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Processing Complete'),
+        icon: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.primaryContainer,
+            shape: BoxShape.circle,
+          ),
+          child: Icon(
+            Icons.check_circle,
+            color: Theme.of(context).colorScheme.primary,
+            size: 32,
+          ),
+        ),
+        title: const Text('Processing Complete!'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('✅ Successfully processed ${result.organizedFiles} files'),
-            const SizedBox(height: 8),
-            Text('📊 Total files found: ${result.totalFiles}'),
-            Text('🔍 Files with timestamps: ${result.processedFiles}'),
-            Text('📁 Unique files: ${result.uniqueFiles}'),
-            if (result.warnings.isNotEmpty)
-              Text('⚠️ Warnings: ${result.warnings.length}'),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                children: [
+                  _buildDialogStatRow('Files processed', '${result.organizedFiles}'),
+                  const Divider(height: 16),
+                  _buildDialogStatRow('Total files found', '${result.totalFiles}'),
+                  const Divider(height: 16),
+                  _buildDialogStatRow('Files with timestamps', '${result.processedFiles}'),
+                  const Divider(height: 16),
+                  _buildDialogStatRow('Unique files', '${result.uniqueFiles}'),
+                  if (result.warnings.isNotEmpty) ...[
+                    const Divider(height: 16),
+                    _buildDialogStatRow('Warnings', '${result.warnings.length}'),
+                  ],
+                ],
+              ),
+            ),
           ],
         ),
         actions: [
-          TextButton(
+          FilledButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
+            child: const Text('Done'),
           ),
         ],
       ),
@@ -196,15 +221,55 @@ class _ProcessingProgressCardState extends State<ProcessingProgressCard>
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        icon: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.errorContainer,
+            shape: BoxShape.circle,
+          ),
+          child: Icon(
+            Icons.error,
+            color: Theme.of(context).colorScheme.error,
+            size: 32,
+          ),
+        ),
         title: const Text('Processing Error'),
-        content: Text(error),
+        content: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.errorContainer.withValues(alpha: 0.3),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            error,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+        ),
         actions: [
-          TextButton(
+          OutlinedButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
+            child: const Text('Close'),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildDialogStatRow(String label, String value) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
+        Text(
+          value,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
     );
   }
 
@@ -222,111 +287,182 @@ class _ProcessingProgressCardState extends State<ProcessingProgressCard>
   Widget build(BuildContext context) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(AppConstants.cardPadding),
+        padding: const EdgeInsets.all(24.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                const Icon(Icons.play_arrow, color: Colors.green),
-                const SizedBox(width: AppConstants.smallSpacing),
+                Icon(
+                  Icons.play_circle,
+                  color: Theme.of(context).colorScheme.primary,
+                  size: 28,
+                ),
+                const SizedBox(width: 12),
                 Text(
-                  'Start Processing',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
+                  'Process Files',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: AppConstants.mediumSpacing),
+            const SizedBox(height: 16),
+            Text(
+              'Start organizing your photos by extracting timestamps and creating date-based folders.',
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 24),
 
             // Progress indicator
             if (_isProcessing || _progress > 0) ...[
-              LinearProgressIndicator(
-                value: _progress,
-                backgroundColor: Colors.grey.shade200,
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  _progress == 1.0 ? Colors.green : Colors.blue,
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          _isProcessing ? Icons.hourglass_empty : Icons.check_circle,
+                          color: _progress == 1.0 
+                            ? Theme.of(context).colorScheme.primary
+                            : Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            _currentStatus,
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.primary,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            '${(_progress * 100).toStringAsFixed(1)}%',
+                            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                              color: Theme.of(context).colorScheme.onPrimary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    LinearProgressIndicator(
+                      value: _progress,
+                      backgroundColor: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        _progress == 1.0 
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(context).colorScheme.primary,
+                      ),
+                      minHeight: 8,
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.schedule,
+                              size: 16,
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Elapsed: $_elapsedTime',
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (_estimatedTime != null)
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.timer,
+                                size: 16,
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Remaining: $_estimatedTime',
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: AppConstants.smallSpacing),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    _currentStatus,
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                  Text(
-                    '${(_progress * 100).toStringAsFixed(1)}%',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppConstants.smallSpacing),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Elapsed: $_elapsedTime',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Colors.grey.shade600,
-                    ),
-                  ),
-                  if (_estimatedTime != null)
-                    Text(
-                      'Remaining: $_estimatedTime',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Colors.grey.shade600,
-                      ),
-                    ),
-                ],
-              ),
-              const SizedBox(height: AppConstants.mediumSpacing),
+              const SizedBox(height: 24),
             ],
 
             // Control buttons
             Row(
               children: [
                 Expanded(
-                  child: ElevatedButton.icon(
+                  child: FilledButton.icon(
                     onPressed: _isProcessing ? null : _startProcessing,
                     icon: _isProcessing
                         ? SizedBox(
-                            width: 16,
-                            height: 16,
+                            width: 20,
+                            height: 20,
                             child: AnimatedBuilder(
                               animation: _animationController,
                               builder: (context, child) {
                                 return Transform.rotate(
                                   angle: _animationController.value * 2 * pi,
-                                  child: const Icon(Icons.refresh, size: 16),
+                                  child: Icon(
+                                    Icons.refresh,
+                                    size: 20,
+                                    color: Theme.of(context).colorScheme.onPrimary,
+                                  ),
                                 );
                               },
                             ),
                           )
                         : const Icon(Icons.play_arrow),
                     label: Text(_isProcessing ? 'Processing...' : 'Start Processing'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
                   ),
                 ),
                 if (_isProcessing) ...[
-                  const SizedBox(width: AppConstants.smallSpacing),
+                  const SizedBox(width: 16),
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: _cancelProcessing,
                       icon: const Icon(Icons.stop),
                       label: const Text('Cancel'),
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.red,
-                        side: const BorderSide(color: Colors.red),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        foregroundColor: Theme.of(context).colorScheme.error,
+                        side: BorderSide(color: Theme.of(context).colorScheme.error),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                     ),
                   ),
@@ -336,16 +472,7 @@ class _ProcessingProgressCardState extends State<ProcessingProgressCard>
 
             // Results summary
             if (_result != null && !_isProcessing) ...[
-              const SizedBox(height: AppConstants.mediumSpacing),
-              const Divider(),
-              const SizedBox(height: AppConstants.smallSpacing),
-              Text(
-                'Processing Results',
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: AppConstants.smallSpacing),
+              const SizedBox(height: 24),
               _buildResultsSummary(_result!),
             ],
           ],
@@ -356,45 +483,96 @@ class _ProcessingProgressCardState extends State<ProcessingProgressCard>
 
   Widget _buildResultsSummary(ProcessingResult result) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: result.isSuccess ? Colors.green.shade50 : Colors.red.shade50,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: result.isSuccess ? Colors.green.shade200 : Colors.red.shade200,
-        ),
+        color: result.isSuccess 
+          ? Theme.of(context).colorScheme.primaryContainer
+          : Theme.of(context).colorScheme.errorContainer,
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(
-                result.isSuccess ? Icons.check_circle : Icons.error,
-                color: result.isSuccess ? Colors.green : Colors.red,
-                size: 20,
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: result.isSuccess 
+                    ? Theme.of(context).colorScheme.primary
+                    : Theme.of(context).colorScheme.error,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  result.isSuccess ? Icons.check : Icons.close,
+                  color: result.isSuccess 
+                    ? Theme.of(context).colorScheme.onPrimary
+                    : Theme.of(context).colorScheme.onError,
+                  size: 20,
+                ),
               ),
-              const SizedBox(width: AppConstants.smallSpacing),
+              const SizedBox(width: 12),
               Text(
-                result.isSuccess ? 'Success' : 'Failed',
-                style: TextStyle(
-                  color: result.isSuccess ? Colors.green : Colors.red,
-                  fontWeight: FontWeight.bold,
+                result.isSuccess ? 'Processing Complete!' : 'Processing Failed',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: result.isSuccess 
+                    ? Theme.of(context).colorScheme.onPrimaryContainer
+                    : Theme.of(context).colorScheme.onErrorContainer,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            result.isSuccess
-                ? 'Organized ${result.organizedFiles} files successfully'
-                : result.error ?? 'Processing failed',
-            style: TextStyle(
-              color: result.isSuccess ? Colors.green.shade700 : Colors.red.shade700,
-              fontSize: 12,
+          const SizedBox(height: 16),
+          if (result.isSuccess) ...[
+            _buildStatRow(Icons.photo, 'Files processed', '${result.organizedFiles}'),
+            const SizedBox(height: 8),
+            _buildStatRow(Icons.folder, 'Total files found', '${result.totalFiles}'),
+            const SizedBox(height: 8),
+            _buildStatRow(Icons.schedule, 'Files with timestamps', '${result.processedFiles}'),
+            const SizedBox(height: 8),
+            _buildStatRow(Icons.filter_none, 'Unique files', '${result.uniqueFiles}'),
+            if (result.warnings.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              _buildStatRow(Icons.warning, 'Warnings', '${result.warnings.length}'),
+            ],
+          ] else
+            Text(
+              result.error ?? 'An unknown error occurred during processing.',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onErrorContainer,
+              ),
             ),
-          ),
         ],
       ),
+    );
+  }
+
+  Widget _buildStatRow(IconData icon, String label, String value) {
+    return Row(
+      children: [
+        Icon(
+          icon,
+          size: 16,
+          color: Theme.of(context).colorScheme.onPrimaryContainer,
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            label,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Theme.of(context).colorScheme.onPrimaryContainer,
+            ),
+          ),
+        ),
+        Text(
+          value,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: Theme.of(context).colorScheme.onPrimaryContainer,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
     );
   }
 

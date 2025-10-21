@@ -20,6 +20,10 @@ class AppConstants {
   static const String noMediaFilesFound = 'No media files found and doesn\'t appear to be a Google Photos takeout folder';
   static const String googlePhotosFolderDetected = 'Folder appears to be a Google Photos takeout folder (no files found yet)';
 
+  // Date Guessing Feature
+  static const String guessDateTitle = 'Guess date from folder name';
+  static const String guessDateDescription = 'For images without metadata, assigns January 1st of the year found in folder names (e.g., "Photos from 2017" → January 1, 2017)';
+
   // File Extensions
   static const List<String> supportedImageExtensions = [
     '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.heic', '.mov', '.mp4'
@@ -32,13 +36,18 @@ class AppConstants {
 
   // UI Constants
   static const double defaultPadding = 16.0;
-  static const double cardPadding = 16.0;
-  static const double buttonPadding = 16.0;
+  static const double cardPadding = 24.0;
+  static const double buttonPadding = 20.0;
   static const double smallSpacing = 8.0;
   static const double mediumSpacing = 16.0;
   static const double largeSpacing = 24.0;
+  static const double extraLargeSpacing = 32.0;
   static const double buttonFontSize = 16.0;
   static const double titleFontSize = 16.0;
+  
+  // Responsive breakpoints
+  static const double mobileBreakpoint = 768.0;
+  static const double desktopMaxWidth = 1200.0;
 
   // Animation durations
   static const Duration snackBarDuration = Duration(seconds: 5);

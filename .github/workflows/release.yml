@@ -1,0 +1,310 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., v1.0.0)'
+        required: true
+        default: 'v1.0.0'
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+          channel: 'stable'
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build Windows app
+        run: flutter build windows --release
+
+      - name: Create Windows archive
+        run: |
+          Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath takeout-timefix-windows-x64.zip
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-release
+          path: takeout-timefix-windows-x64.zip
+
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+          channel: 'stable'
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build Android APK
+        run: flutter build apk --release
+
+      - name: Build Android App Bundle
+        run: flutter build appbundle --release
+
+      - name: Upload Android APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+
+      - name: Upload Android App Bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-aab
+          path: build/app/outputs/bundle/release/app-release.aab
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+          channel: 'stable'
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build macOS app
+        run: flutter build macos --release
+
+      - name: Create macOS archive
+        run: |
+          cd build/macos/Build/Products/Release
+          tar -czf ../../../../../takeout-timefix-macos.tar.gz takeout_timefix.app
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-release
+          path: takeout-timefix-macos.tar.gz
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+          channel: 'stable'
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build Linux app
+        run: flutter build linux --release
+
+      - name: Create Linux archive
+        run: |
+          cd build/linux/x64/release/bundle
+          tar -czf ../../../../../takeout-timefix-linux-x64.tar.gz *
+
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-release
+          path: takeout-timefix-linux-x64.tar.gz
+
+  build-web:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+          channel: 'stable'
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build Web app
+        run: flutter build web --release --base-href="/takeout-timefix/"
+
+      - name: Create Web archive
+        run: |
+          cd build/web
+          tar -czf ../../takeout-timefix-web.tar.gz *
+
+      - name: Upload Web artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-release
+          path: takeout-timefix-web.tar.gz
+
+  create-release:
+    needs: [build-windows, build-android, build-macos, build-linux, build-web]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Get version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.version.outputs.VERSION }}
+          release_name: Takeout TimeFix ${{ steps.version.outputs.VERSION }}
+          body: |
+            ## 🚀 Takeout TimeFix ${{ steps.version.outputs.VERSION }}
+            
+            ### 📱 Downloads
+            
+            **Desktop Applications:**
+            - **Windows**: Download `takeout-timefix-windows-x64.zip`
+            - **macOS**: Download `takeout-timefix-macos.tar.gz`
+            - **Linux**: Download `takeout-timefix-linux-x64.tar.gz`
+            
+            **Mobile Applications:**
+            - **Android APK**: Download `app-release.apk` (for sideloading)
+            - **Android App Bundle**: `app-release.aab` (for Play Store)
+            
+            **Web Application:**
+            - **Web**: Download `takeout-timefix-web.tar.gz` (host on web server)
+            
+            ### 🔧 Installation Instructions
+            
+            **Windows:**
+            1. Download and extract `takeout-timefix-windows-x64.zip`
+            2. Run `takeout_timefix.exe`
+            
+            **macOS:**
+            1. Download and extract `takeout-timefix-macos.tar.gz`
+            2. Move `takeout_timefix.app` to Applications folder
+            3. Right-click and select "Open" (first time only)
+            
+            **Linux:**
+            1. Download and extract `takeout-timefix-linux-x64.tar.gz`
+            2. Run `./takeout_timefix`
+            
+            **Android:**
+            1. Download `app-release.apk`
+            2. Enable "Install from unknown sources" in Settings
+            3. Install the APK file
+            
+            ### ✨ Features
+            - Organize Google Photos takeout exports by date
+            - Extract timestamps from EXIF data and JSON metadata
+            - Support for multiple organization formats
+            - Cross-platform compatibility
+            - Modern Material Design 3 interface
+            - Real-time progress tracking
+            
+            ### 🐛 Bug Reports
+            Please report issues on our [GitHub Issues](https://github.com/your-username/takeout-timefix/issues) page.
+          draft: false
+          prerelease: false
+
+      - name: Upload Windows Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./windows-release/takeout-timefix-windows-x64.zip
+          asset_name: takeout-timefix-windows-x64.zip
+          asset_content_type: application/zip
+
+      - name: Upload Android APK Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./android-apk/app-release.apk
+          asset_name: takeout-timefix-android.apk
+          asset_content_type: application/vnd.android.package-archive
+
+      - name: Upload Android App Bundle Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./android-aab/app-release.aab
+          asset_name: takeout-timefix-android.aab
+          asset_content_type: application/octet-stream
+
+      - name: Upload macOS Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./macos-release/takeout-timefix-macos.tar.gz
+          asset_name: takeout-timefix-macos.tar.gz
+          asset_content_type: application/gzip
+
+      - name: Upload Linux Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./linux-release/takeout-timefix-linux-x64.tar.gz
+          asset_name: takeout-timefix-linux-x64.tar.gz
+          asset_content_type: application/gzip
+
+      - name: Upload Web Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./web-release/takeout-timefix-web.tar.gz
+          asset_name: takeout-timefix-web.tar.gz
+          asset_content_type: application/gzip
