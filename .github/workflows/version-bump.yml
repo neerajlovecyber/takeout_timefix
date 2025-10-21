@@ -120,12 +120,10 @@ $CHANGELOG_ENTRY" > CHANGELOG.md
           echo "Created and pushed tag: v$NEW_VERSION"
 
       - name: Create GitHub Release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v1
         with:
           tag_name: v${{ steps.new_version.outputs.NEW_VERSION }}
-          release_name: Release v${{ steps.new_version.outputs.NEW_VERSION }}
+          name: Release v${{ steps.new_version.outputs.NEW_VERSION }}
           body: |
             ## 🚀 Release v${{ steps.new_version.outputs.NEW_VERSION }}
             
@@ -144,3 +142,5 @@ $CHANGELOG_ENTRY" > CHANGELOG.md
             Download the appropriate package for your platform from the assets below.
           draft: false
           prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
