@@ -72,30 +72,36 @@ jobs:
           NEW_VERSION="${{ steps.new_version.outputs.NEW_VERSION }}"
           DATE=$(date +"%Y-%m-%d")
           
-          # Create changelog entry
-          CHANGELOG_ENTRY="## [$NEW_VERSION] - $DATE
-
-### Added
-- New features and improvements
-
-### Changed
-- Updated dependencies and performance improvements
-
-### Fixed
-- Bug fixes and stability improvements
-
-"
+          # Create temporary changelog entry file
+          cat > temp_changelog.md << EOF
+          ## [$NEW_VERSION] - $DATE
+          
+          ### Added
+          - New features and improvements
+          
+          ### Changed
+          - Updated dependencies and performance improvements
+          
+          ### Fixed
+          - Bug fixes and stability improvements
+          
+          EOF
           
           # Prepend to CHANGELOG.md if it exists, otherwise create it
           if [ -f CHANGELOG.md ]; then
-            echo "$CHANGELOG_ENTRY" | cat - CHANGELOG.md > temp && mv temp CHANGELOG.md
+            cat temp_changelog.md CHANGELOG.md > temp && mv temp CHANGELOG.md
           else
-            echo "# Changelog
-
-All notable changes to this project will be documented in this file.
-
-$CHANGELOG_ENTRY" > CHANGELOG.md
+            cat > CHANGELOG.md << EOF
+          # Changelog
+          
+          All notable changes to this project will be documented in this file.
+          
+          EOF
+            cat temp_changelog.md >> CHANGELOG.md
           fi
+          
+          # Clean up temporary file
+          rm temp_changelog.md
           
           echo "Generated changelog entry for version $NEW_VERSION"
 
