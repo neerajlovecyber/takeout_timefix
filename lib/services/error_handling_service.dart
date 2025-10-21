@@ -111,7 +111,6 @@ class ErrorHandlingService {
         );
 
       case ErrorCategory.unknown:
-      default:
         return RecoverySuggestion(
           action: 'Review error details and retry if appropriate',
           canRetry: true,

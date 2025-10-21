@@ -1,6 +1,4 @@
 
-import 'dart:io';
-
 /// max file size to read for exif/hash/anything
 const maxFileSize = 64 * 1024 * 1024;
 

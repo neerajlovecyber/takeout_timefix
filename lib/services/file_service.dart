@@ -5,8 +5,6 @@ import 'package:path/path.dart' as path;
 /// Service for discovering and filtering media files in directories
 /// Simplified to match the original implementation's direct approach
 class FileService {
-  /// Maximum file size for processing (64MB like reference implementation)
-  static const int _maxFileSize = 64 * 1024 * 1024;
 
   /// Supported image file extensions
   static const List<String> _imageExtensions = [
@@ -47,7 +45,7 @@ class FileService {
       }
     } catch (e) {
       // Handle permission errors or inaccessible files gracefully
-      print('Warning: Error accessing some files in $directoryPath: $e');
+      // Log warning but continue processing
     }
 
     return mediaFiles;
@@ -205,10 +203,9 @@ class FileService {
   List<String> getAllSupportedExtensions() {
     return [..._imageExtensions, ..._videoExtensions];
   }
-
 }
 
-/// Extension to add filtering capabilities to Iterable<FileSystemEntity>
+/// Extension to add filtering capabilities to Iterable of FileSystemEntity
 extension MediaFileFiltering on Iterable<FileSystemEntity> {
   /// Filter for photo and video files only
   Iterable<File> whereMediaFiles() {
@@ -239,7 +236,7 @@ extension MediaFileFiltering on Iterable<FileSystemEntity> {
   }
 }
 
-/// Extension to add filtering capabilities to Stream<FileSystemEntity>
+/// Extension to add filtering capabilities to Stream of FileSystemEntity
 extension MediaFileStreamFiltering on Stream<FileSystemEntity> {
   /// Filter for photo and video files only
   Stream<File> whereMediaFiles() async* {

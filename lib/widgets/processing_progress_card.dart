@@ -33,7 +33,6 @@ class _ProcessingProgressCardState extends State<ProcessingProgressCard>
   String _elapsedTime = '';
   String? _estimatedTime;
   ProcessingResult? _result;
-  Timer? _timeUpdateTimer;
   late AnimationController _animationController;
 
   @override

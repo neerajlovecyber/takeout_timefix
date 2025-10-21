@@ -96,7 +96,7 @@ class FileOrganizationService {
         await targetFile.setLastModified(media.dateTaken!);
       } catch (e) {
         // Handle cases where timestamp setting fails (matches example script error handling)
-        print("WARNING: Can't set modification time on $targetFile: $e");
+        // Log warning but continue processing
       }
     }
 
@@ -129,9 +129,6 @@ class FileOrganizationService {
 
       case OrganizationMode.singleFolder:
         return _getSingleFolderPath(media, outputDirectory, preserveOriginalFilename);
-
-      default:
-        throw UnsupportedError('Organization mode $mode not supported');
     }
   }
 
@@ -151,7 +148,7 @@ class FileOrganizationService {
       return path.join(folderPath, originalName);
     } else {
       // Create new filename with date prefix
-      final datePrefix = '${year}${monthPadded}${dateTaken.day.toString().padLeft(2, '0')}_${dateTaken.hour.toString().padLeft(2, '0')}${dateTaken.minute.toString().padLeft(2, '0')}${dateTaken.second.toString().padLeft(2, '0')}';
+      final datePrefix = '$year$monthPadded${dateTaken.day.toString().padLeft(2, '0')}_${dateTaken.hour.toString().padLeft(2, '0')}${dateTaken.minute.toString().padLeft(2, '0')}${dateTaken.second.toString().padLeft(2, '0')}';
       final extension = path.extension(media.primaryFile!.path);
       final newFilename = '$datePrefix$extension';
       return path.join(folderPath, newFilename);
@@ -233,7 +230,7 @@ class FileOrganizationService {
       if (media.dateTaken == null) continue;
 
       try {
-        final targetPath = await _getTargetPath(media, outputDirectory, mode);
+        final targetPath = _getTargetPath(media, outputDirectory, mode);
         final relativePath = path.relative(targetPath, from: outputDirectory);
         structure.add(relativePath);
       } catch (e) {

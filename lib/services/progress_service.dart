@@ -112,26 +112,7 @@ class ProgressService {
     return false;
   }
 
-  /// Check if we should update based on time interval to ensure elapsed time updates
-  bool _shouldUpdateTime() {
-    if (_startTime == null) return false;
 
-    final now = DateTime.now();
-
-    // Initialize last update time if not set
-    _lastTimeUpdate ??= now;
-
-    // Update every 2 seconds to keep elapsed time current
-    final shouldUpdate = now.difference(_lastTimeUpdate!).inSeconds >= 2;
-
-    if (shouldUpdate) {
-      _lastTimeUpdate = now;
-    }
-
-    return shouldUpdate;
-  }
-
-  DateTime? _lastTimeUpdate;
 
   /// Report an error during the operation
   void reportError(String error, {bool isFatal = false}) {

@@ -1,16 +1,8 @@
 import 'dart:io';
-import 'dart:convert';
-import 'dart:typed_data';
-import 'package:crypto/crypto.dart';
 import '../models/media.dart';
 
 /// Service for detecting duplicate media files using SHA256 hashing
 class DuplicateService {
-  /// Cache for file sizes to avoid repeated stat calls
-  final Map<String, int> _fileSizeCache = {};
-
-  /// Cache for file hashes to avoid repeated computation
-  final Map<String, Digest> _hashCache = {};
 
   /// Group media files by size, then by hash, to find duplicates.
   /// This is much more efficient than hashing every file.
@@ -30,7 +22,7 @@ class DuplicateService {
     for (final sizeGroup in sizeGroups.values) {
       if (sizeGroup.length <= 1) {
         // Unique size, no need to hash, treat as a unique group
-        hashGroups['size_${sizeGroup.first.size}_${processedFiles}'] = sizeGroup;
+        hashGroups['size_${sizeGroup.first.size}_$processedFiles'] = sizeGroup;
       } else {
         // Multiple files with the same size, now group by hash
         final potentialDuplicatesByHash =
