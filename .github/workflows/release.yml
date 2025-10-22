@@ -48,7 +48,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows-msix
-          path: takeout_timefix.msix
+          path: build/windows/x64/runner/Release/takeout_timefix.msix
+          if-no-files-found: error
 
   build-android:
     runs-on: ubuntu-latest
