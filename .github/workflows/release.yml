@@ -36,7 +36,7 @@ jobs:
           Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath takeout-timefix-windows-x64.zip
 
       - name: Build Windows MSIX
-        run: flutter pub run msix:create --release
+        run: flutter pub run msix:create --store
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
