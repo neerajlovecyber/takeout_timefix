@@ -87,6 +87,8 @@ dev_dependencies:
 
   flutter_launcher_icons: ^0.13.1
 
+  msix: ^3.16.3
+
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 
@@ -135,3 +137,11 @@ flutter_icons:
  windows:
    generate: true
  image_path: "icon.png"
+
+msix_config:
+  display_name: Takeout TimeFix
+  publisher_display_name: Takeout TimeFix
+  identity_name: com.example.takeouttimefix
+  msix_version: 1.0.0.0
+  logo_path: icon.png
+  capabilities: internetClient

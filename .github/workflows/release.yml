@@ -35,11 +35,20 @@ jobs:
         run: |
           Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath takeout-timefix-windows-x64.zip
 
+      - name: Build Windows MSIX
+        run: flutter pub run msix:create --release
+
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
           name: windows-release
           path: takeout-timefix-windows-x64.zip
+
+      - name: Upload Windows MSIX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-msix
+          path: build/windows/x64/runner/Release/takeout_timefix.msix
 
   build-android:
     runs-on: ubuntu-latest
@@ -179,7 +188,8 @@ jobs:
             ### 📱 Downloads
 
             **Desktop Applications:**
-            - **Windows**: Download `takeout-timefix-windows-x64.zip`
+            - **Windows (ZIP)**: Download `takeout-timefix-windows-x64.zip`
+            - **Windows (MSIX)**: Download `takeout_timefix.msix`
             - **macOS**: Download `takeout-timefix-macos.tar.gz`
             - **Linux**: Download `takeout-timefix-linux-x64.tar.gz`
 
@@ -190,9 +200,14 @@ jobs:
 
             ### 🔧 Installation Instructions
 
-            **Windows:**
+            **Windows (ZIP):**
             1. Download and extract `takeout-timefix-windows-x64.zip`
             2. Run `takeout_timefix.exe`
+
+            **Windows (MSIX):**
+            1. Download `takeout_timefix.msix`
+            2. Double-click the MSIX file to install (requires Windows 10 version 1703 or later)
+            3. The app will be available in the Start menu
 
             **macOS:**
             1. Download and extract `takeout-timefix-macos.tar.gz`
@@ -222,6 +237,7 @@ jobs:
           prerelease: ${{ startsWith(steps.version.outputs.VERSION, 'dev-') }}
           files: |
             ./windows-release/takeout-timefix-windows-x64.zip
+            ./windows-msix/takeout_timefix.msix
             ./android-apk/app-release.apk
             ./android-aab/app-release.aab
             ./macos-release/takeout-timefix-macos.tar.gz
