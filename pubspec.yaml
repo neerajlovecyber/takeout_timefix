@@ -140,9 +140,11 @@ flutter_icons:
 
 msix_config:
   display_name: Takeout TimeFix
-  publisher_display_name: Takeout TimeFix
-  identity_name: com.example.takeouttimefix
+  publisher_display_name: theneerajsec
+  publisher: CN=75C07F1C-23C9-446E-ADE8-19DEC3BB659D
+  identity_name: theneerajsec.takeouttimefix
   msix_version: 1.0.0.0
   logo_path: icon.png
   capabilities: internetClient
   store: true
+  output_name: takeout_timefix
